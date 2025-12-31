@@ -1,5 +1,20 @@
 # 🐢 Turtle Bot - Advanced Turtle Trading System
 
+## 🇺🇸 USA Regulatory Compliant
+
+**MADE FOR US TRADERS - HARD TO FIND, FULLY COMPLIANT**
+
+This bot is specifically designed to meet US regulatory requirements:
+- ✅ **SPOT TRADING ONLY** (no futures, no derivatives)
+- ✅ **LONG POSITIONS ONLY** (no shorting)
+- ✅ **NO LEVERAGE** (100% compliant with US regulations)
+- ✅ **US EXCHANGES ONLY** (Binance US, Kraken US, ccxt-compatible US exchanges)
+- ✅ **Regulatory Compliant** for US retail traders
+
+**Why this matters**: Most trading bots use leverage, futures, or shorting - which creates regulatory issues for US traders. This bot is built from the ground up for US compliance.
+
+---
+
 A sophisticated cryptocurrency trading bot implementing the famous **Turtle Trading Strategy** with modern enhancements, real-time web dashboard, and pyramid position management.
 
 ## ✨ Features
