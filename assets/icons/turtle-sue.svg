@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient for shell -->
+    <linearGradient id="shellGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Gradient for body -->
+    <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34d399;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Radial gradient for highlights -->
+    <radialGradient id="highlight" cx="30%" cy="30%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    </radialGradient>
+
+    <!-- Shadow -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#1a1f2e" opacity="0.95"/>
+
+  <!-- Main turtle group with shadow -->
+  <g filter="url(#shadow)">
+    <!-- Shell -->
+    <ellipse cx="256" cy="280" rx="140" ry="120" fill="url(#shellGradient)"/>
+
+    <!-- Shell pattern - hexagons -->
+    <g opacity="0.3" stroke="#047857" stroke-width="3" fill="none">
+      <path d="M 256 190 L 286 205 L 286 235 L 256 250 L 226 235 L 226 205 Z"/>
+      <path d="M 296 220 L 326 235 L 326 265 L 296 280 L 266 265 L 266 235 Z"/>
+      <path d="M 216 220 L 246 235 L 246 265 L 216 280 L 186 265 L 186 235 Z"/>
+      <path d="M 256 270 L 286 285 L 286 315 L 256 330 L 226 315 L 226 285 Z"/>
+      <path d="M 176 260 L 206 275 L 206 305 L 176 320 L 146 305 L 146 275 Z"/>
+      <path d="M 336 260 L 366 275 L 366 305 L 336 320 L 306 305 L 306 275 Z"/>
+    </g>
+
+    <!-- Head -->
+    <ellipse cx="256" cy="160" rx="45" ry="40" fill="url(#bodyGradient)"/>
+
+    <!-- Eyes -->
+    <circle cx="240" cy="155" r="8" fill="#1a1f2e"/>
+    <circle cx="272" cy="155" r="8" fill="#1a1f2e"/>
+    <circle cx="242" cy="153" r="3" fill="#ffffff"/>
+    <circle cx="274" cy="153" r="3" fill="#ffffff"/>
+
+    <!-- Smile - determined trader expression -->
+    <path d="M 235 168 Q 256 175 277 168" stroke="#1a1f2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+    <!-- Front legs -->
+    <ellipse cx="185" cy="300" rx="35" ry="25" fill="url(#bodyGradient)" transform="rotate(-20 185 300)"/>
+    <ellipse cx="327" cy="300" rx="35" ry="25" fill="url(#bodyGradient)" transform="rotate(20 327 300)"/>
+
+    <!-- Back legs -->
+    <ellipse cx="165" cy="350" rx="30" ry="22" fill="url(#bodyGradient)" transform="rotate(-15 165 350)"/>
+    <ellipse cx="347" cy="350" rx="30" ry="22" fill="url(#bodyGradient)" transform="rotate(15 347 350)"/>
+
+    <!-- Tail -->
+    <path d="M 256 380 Q 256 410 250 430" stroke="url(#bodyGradient)" stroke-width="15" fill="none" stroke-linecap="round"/>
+
+    <!-- Shell highlight -->
+    <ellipse cx="220" cy="240" rx="60" ry="50" fill="url(#highlight)"/>
+  </g>
+
+  <!-- Trading chart accent on shell -->
+  <g opacity="0.6">
+    <path d="M 180 320 L 200 310 L 220 315 L 240 300 L 260 305 L 280 295 L 300 285 L 320 290"
+          stroke="#fbbf24" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Upward arrow -->
+    <path d="M 315 290 L 320 290 L 318 285" stroke="#fbbf24" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- Dollar sign accent -->
+  <g opacity="0.5">
+    <text x="385" y="240" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#fbbf24">$</text>
+  </g>
+</svg>

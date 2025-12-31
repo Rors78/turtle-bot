@@ -1,0 +1,83 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <radialGradient id="turtleBg">
+      <stop offset="0%" style="stop-color:#1a4d2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a1f14;stop-opacity:1" />
+    </radialGradient>
+    <linearGradient id="shellGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ecca3;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2ecc71;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#27ae60;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shellGlow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="256" cy="256" r="240" fill="url(#turtleBg)"/>
+
+  <!-- Turtle shell (main body) -->
+  <ellipse cx="256" cy="270" rx="150" ry="130" fill="url(#shellGrad)"
+           filter="url(#shellGlow)"/>
+
+  <!-- Shell pattern (hexagons) -->
+  <g fill="#27ae60" opacity="0.6">
+    <!-- Center hexagon -->
+    <polygon points="256,220 286,235 286,265 256,280 226,265 226,235"/>
+    <!-- Surrounding hexagons -->
+    <polygon points="200,235 230,220 260,235 260,265 230,280 200,265"/>
+    <polygon points="312,235 342,220 372,235 372,265 342,280 312,265"/>
+    <polygon points="228,305 258,290 288,305 288,335 258,350 228,335"/>
+  </g>
+
+  <!-- Turtle head -->
+  <ellipse cx="256" cy="180" rx="45" ry="50" fill="#4ecca3"/>
+
+  <!-- Eyes -->
+  <g>
+    <circle cx="240" cy="175" r="8" fill="#1a4d2e"/>
+    <circle cx="240" cy="175" r="4" fill="#fff"/>
+    <circle cx="272" cy="175" r="8" fill="#1a4d2e"/>
+    <circle cx="272" cy="175" r="4" fill="#fff"/>
+  </g>
+
+  <!-- Smile -->
+  <path d="M 240 190 Q 256 198 272 190" stroke="#1a4d2e"
+        stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Legs -->
+  <g fill="#4ecca3">
+    <ellipse cx="150" cy="260" rx="30" ry="40" transform="rotate(-20 150 260)"/>
+    <ellipse cx="362" cy="260" rx="30" ry="40" transform="rotate(20 362 260)"/>
+    <ellipse cx="180" cy="350" rx="30" ry="40" transform="rotate(-15 180 350)"/>
+    <ellipse cx="332" cy="350" rx="30" ry="40" transform="rotate(15 332 350)"/>
+  </g>
+
+  <!-- Chart trend line (showing turtle strategy) -->
+  <g opacity="0.8">
+    <!-- Donchian channel visualization -->
+    <path d="M 80 380 L 140 350 L 200 320 L 260 340 L 320 310 L 380 290 L 432 280"
+          stroke="#ffd700" stroke-width="3" fill="none" stroke-dasharray="5,5"/>
+    <path d="M 80 420 L 140 430 L 200 410 L 260 400 L 320 390 L 380 380 L 432 370"
+          stroke="#ff6b6b" stroke-width="3" fill="none" stroke-dasharray="5,5"/>
+    <!-- Price line -->
+    <path d="M 80 400 L 140 390 L 200 365 L 260 370 L 320 350 L 380 335 L 432 325"
+          stroke="#4ecca3" stroke-width="4" fill="none" filter="url(#shellGlow)"/>
+  </g>
+
+  <!-- "TB" monogram at bottom -->
+  <g filter="url(#shellGlow)">
+    <text x="256" y="480" font-family="Arial, sans-serif" font-size="60"
+          font-weight="bold" fill="#4ecca3" text-anchor="middle">TURTLE</text>
+  </g>
+
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#4ecca3"
+          stroke-width="3" opacity="0.4"/>
+</svg>

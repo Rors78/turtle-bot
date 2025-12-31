@@ -1,0 +1,22 @@
+{
+    "core_index": {
+        "symbols": ["BTC_USDT", "ETH_USDT", "BNB_USDT", "SOL_USDT", "AVAX_USDT"],
+        "kline_period": "1m", 
+        "kline_limit": 60, 
+        "poll_interval": 30,
+        "coin_vol_threshold": 0.06, 
+        "coin_range_threshold": 0.03,
+        "min_coins_to_pause": 2, 
+        "portfolio_avg_threshold": 0.04
+    },
+    "agg_active": {
+        "symbols": ["BTC_USDT", "ETH_USDT"],
+        "kline_period": "1m", 
+        "kline_limit": 120, 
+        "poll_interval": 20,
+        "coin_vol_threshold": 0.03, 
+        "coin_range_threshold": 0.02,
+        "min_coins_to_pause": 1, 
+        "portfolio_avg_threshold": 0.03
+    }
+}

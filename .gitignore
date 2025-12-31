@@ -1,0 +1,82 @@
+# Bot State Files
+bot_state.json
+bot_state.pkl
+bot_state.pkl.bak
+turtle_state.json
+*.pkl
+*.pkl.bak
+
+# Log Files
+*.log
+turtle_bot_output.log
+turtle_signals.log
+
+# Environment and Secrets
+.env
+*.env
+secrets.json
+api_keys.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+ENV/
+env/
+virtualenv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Backup files
+*~
+*.bak
+*.backup
+
+# Test data
+test_data/
+backtest_results/
+
+# Trading data (keep private)
+trade_history.json
+positions.json
+performance.json
