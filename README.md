@@ -15,6 +15,8 @@ This bot is specifically designed to meet US regulatory requirements:
 
 ---
 
+> **API keys are optional.** Paper/read-only mode uses the public REST API — no account or key required. Keys are only needed for live order execution.
+
 A sophisticated cryptocurrency trading bot implementing the famous **Turtle Trading Strategy** with modern enhancements, real-time web dashboard, and pyramid position management.
 
 ## ✨ Features
@@ -52,8 +54,14 @@ cd turtle-bot
 ```
 
 2. Install dependencies:
-```bash
+**Windows:**
+```powershell
 pip install -r requirements.txt
+```
+
+**Linux/macOS:**
+```bash
+pip3 install -r requirements.txt
 ```
 
 3. Configure your settings in `config.py`:
@@ -64,8 +72,14 @@ pip install -r requirements.txt
 ### Running the Bot
 
 **Terminal Mode:**
-```bash
+**Windows:**
+```powershell
 python main.py
+```
+
+**Linux/macOS:**
+```bash
+python3 main.py
 ```
 
 **Web Dashboard:**
@@ -155,8 +169,14 @@ The bot automatically tracks:
 ## 🔧 Utilities
 
 ### Export State to JSON
-```bash
+**Windows:**
+```powershell
 python export_state_to_json.py
+```
+
+**Linux/macOS:**
+```bash
+python3 export_state_to_json.py
 ```
 Converts bot state to human-readable JSON format.
 
