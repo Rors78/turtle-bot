@@ -224,21 +224,24 @@ class CCXTAdapter(ExchangeAdapter):
 
     def __init__(
         self,
-        exchange_name: str,
+        exchange_name: str = 'kraken',
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
         paper_trading: bool = True
     ):
         """
-        Initialize CCXT adapter
+        Initialize CCXT adapter (Kraken only)
 
         Args:
-            exchange_name: CCXT exchange ID ('kraken', 'binanceus', etc.)
-            api_key: API key (optional for public data)
-            api_secret: API secret (optional for public data)
+            exchange_name: Must be 'kraken' — any other value raises ValueError
+            api_key: Kraken API key (optional for public data)
+            api_secret: Kraken API secret (optional for public data)
             paper_trading: If True, don't execute real trades
         """
-        super().__init__(exchange_name, paper_trading)
+        if exchange_name.lower() != 'kraken':
+            raise ValueError(f"Only Kraken is supported, got: {exchange_name}")
+
+        super().__init__('kraken', paper_trading)
 
         # Import ccxt here to avoid dependency if not using
         try:
@@ -246,15 +249,10 @@ class CCXTAdapter(ExchangeAdapter):
         except ImportError:
             raise ImportError("CCXT library not installed. Run: pip install ccxt")
 
-        # Initialize exchange
-        exchange_class = getattr(ccxt, exchange_name, None)
-        if not exchange_class:
-            raise ValueError(f"Unknown exchange: {exchange_name}")
-
-        self.exchange = exchange_class({
-            'enableRateLimit': True,   # Enable CCXT rate limiting
-            'rateLimit': 1200,          # 1.2 seconds between requests
-            'timeout': 30000,           # 30 second timeout
+        self.exchange = ccxt.kraken({
+            'enableRateLimit': True,
+            'rateLimit': 3000,   # Kraken: conservative 3s between requests
+            'timeout': 30000,
         })
 
         # Set API credentials if provided and not paper trading
@@ -434,8 +432,5 @@ class CCXTAdapter(ExchangeAdapter):
             base = symbol
             quote = 'USDT'
 
-        # Apply Kraken-specific mapping if needed
-        if self.exchange_name == 'kraken':
-            base = self._kraken_symbol_map(base)
-
+        # CCXT already normalises Kraken's internal XBT -> BTC, so no remapping needed.
         return f"{base}/{quote}"

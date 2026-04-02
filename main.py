@@ -124,7 +124,7 @@ def run_bot():
     try:
         config = load_config()
     except ValueError as e:
-        print(colored(f"\n❌ Configuration Error:\n{e}\n", Colors.RED))
+        print(colored(f"\n? Configuration Error:\n{e}\n", Colors.RED))
         sys.exit(1)
 
     # Setup logging
@@ -151,45 +151,26 @@ def run_bot():
     quote_currency = 'USDT'  # USDT-only trading
 
     try:
-        # Primary exchange
-        primary_creds = config.get_api_credentials(config.PRIMARY_EXCHANGE)
-        exchanges[config.PRIMARY_EXCHANGE] = CCXTAdapter(
-            config.PRIMARY_EXCHANGE,
-            api_key=primary_creds['api_key'],
-            api_secret=primary_creds['api_secret'],
+        # Kraken exchange (only exchange)
+        creds = config.get_api_credentials()
+        exchanges['kraken'] = CCXTAdapter(
+            'kraken',
+            api_key=creds['api_key'],
+            api_secret=creds['api_secret'],
             paper_trading=config.PAPER_TRADING
         )
-        logger.info(f"Initialized {config.PRIMARY_EXCHANGE} exchange (PRIMARY) "
-                   f"({'PAPER TRADING' if config.PAPER_TRADING else 'LIVE TRADING'})")
+        logger.info(f"Initialized Kraken exchange "
+                    f"({'PAPER TRADING' if config.PAPER_TRADING else 'LIVE TRADING'})")
 
-        # Secondary exchange
-        secondary_exchange = None
-        if config.SECONDARY_EXCHANGE:
-            try:
-                secondary_creds = config.get_api_credentials(config.SECONDARY_EXCHANGE)
-                secondary_exchange = CCXTAdapter(
-                    config.SECONDARY_EXCHANGE,
-                    api_key=secondary_creds['api_key'],
-                    api_secret=secondary_creds['api_secret'],
-                    paper_trading=config.PAPER_TRADING
-                )
-                exchanges[config.SECONDARY_EXCHANGE] = secondary_exchange
-                logger.info(f"Initialized {config.SECONDARY_EXCHANGE} exchange (SECONDARY)")
-            except Exception as e:
-                logger.warning(f"Could not initialize secondary exchange {config.SECONDARY_EXCHANGE}: {e}")
-                secondary_exchange = None
-
-        # Multi-exchange data fetcher with CoinGecko fallback
+        # Kraken data fetcher (CoinGecko used only for coin discovery in get_coin_universe)
         multi_fetcher = MultiExchangeFetcher(
-            primary_exchange=exchanges[config.PRIMARY_EXCHANGE],
-            secondary_exchange=secondary_exchange,
-            use_coingecko=True,
+            primary_exchange=exchanges['kraken'],
             quote_currency=quote_currency
         )
-        logger.info(f"Multi-exchange fetcher initialized (quote: {quote_currency})")
+        logger.info(f"Kraken fetcher initialized (quote: {quote_currency})")
 
     except Exception as e:
-        print(colored(f"\n❌ Exchange Initialization Error: {e}\n", Colors.RED))
+        print(colored(f"\n? Exchange Initialization Error: {e}\n", Colors.RED))
         sys.exit(1)
 
     # Portfolio Manager
@@ -216,18 +197,18 @@ def run_bot():
     logger.info(f"Trading universe: {len(symbols)} symbols (quote: {quote_currency})")
 
     # Main loop
-    print(colored(f"\n🚀 Turtle Bot started at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", Colors.CYAN))
-    print(colored(f"💰 Initial Equity: ${state.initial_equity:,.2f}", Colors.WHITE))
-    print(colored(f"⌨️  Press Ctrl+C to stop\n", Colors.GRAY))
+    print(colored(f"\n>> Turtle Bot started at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", Colors.CYAN))
+    print(colored(f"$$ Initial Equity: ${state.initial_equity:,.2f}", Colors.WHITE))
+    print(colored(f"  Press Ctrl+C to stop\n", Colors.GRAY))
 
     try:
         while True:
             state.iteration += 1
 
-            print("\n" + colored("━" * 75, Colors.BLUE))
-            print(colored(f"♻️  Update #{state.iteration}", Colors.BLUE) +
+            print("\n" + colored("?" * 75, Colors.BLUE))
+            print(colored(f"~  Update #{state.iteration}", Colors.BLUE) +
                   colored(f" | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", Colors.GRAY))
-            print(colored("━" * 75, Colors.BLUE))
+            print(colored("?" * 75, Colors.BLUE))
 
             # Fetch market data (with multi-exchange fallback)
             logger.info("Fetching market data...")
@@ -259,7 +240,7 @@ def run_bot():
             # === PRIORITY 0: CHECK EMERGENCY STOP (HIGHEST PRIORITY) ===
             # Check emergency stop BEFORE any trading decisions
             if risk_manager.check_emergency_stop(state.current_equity, state.initial_equity):
-                print(colored("\n🚨 EMERGENCY STOP TRIGGERED!", Colors.RED))
+                print(colored("\n!! EMERGENCY STOP TRIGGERED!", Colors.RED))
                 print(colored(f"Drawdown: {risk_manager.emergency_stop_loss * 100:.1f}%", Colors.RED))
                 print(colored("Closing all positions...\n", Colors.YELLOW))
 
@@ -333,7 +314,7 @@ def run_bot():
             # Skip entry signals if bot is paused
             if state.is_paused:
                 logger.info("Bot is paused - skipping entry signals")
-                print(colored(f"\n⏸️  Bot PAUSED: {state.pause_reason}", Colors.YELLOW))
+                print(colored(f"\n||  Bot PAUSED: {state.pause_reason}", Colors.YELLOW))
                 print(colored(f"   Paused since: {state.paused_at.strftime('%Y-%m-%d %H:%M UTC') if state.paused_at else 'Unknown'}", Colors.GRAY))
                 print(colored("   Still managing existing positions (stops, exits, pyramids)", Colors.GRAY))
             else:
@@ -367,7 +348,7 @@ def run_bot():
             if state.active_positions:
                 notifier.print_portfolio_summary(state, current_prices)
             else:
-                print(colored("\n📊 No active positions", Colors.GRAY))
+                print(colored("\n>> No active positions", Colors.GRAY))
 
             # Display performance
             if state.total_trades > 0:
@@ -379,20 +360,20 @@ def run_bot():
 
             # Sleep until next check
             if state.iteration > 0:
-                print(colored(f"\n💤 Next update in {config.CHECK_INTERVAL // 60} minutes...", Colors.GRAY))
+                print(colored(f"\nzz Next update in {config.CHECK_INTERVAL // 60} minutes...", Colors.GRAY))
                 time.sleep(config.CHECK_INTERVAL)
 
     except KeyboardInterrupt:
-        print("\n\n" + colored("━" * 75, Colors.PURPLE))
-        print(colored("🛑 Stopping Turtle Bot...", Colors.YELLOW))
+        print("\n\n" + colored("?" * 75, Colors.PURPLE))
+        print(colored("!! Stopping Turtle Bot...", Colors.YELLOW))
 
         # Save final state
         state.save(config.STATE_FILE)
-        print(colored(f"💾 State saved to {config.STATE_FILE}", Colors.GREEN))
+        print(colored(f">> State saved to {config.STATE_FILE}", Colors.GREEN))
 
         # Display final summary
         if state.active_positions:
-            print(colored(f"\n📊 Final Portfolio ({len(state.active_positions)} positions):", Colors.PURPLE))
+            print(colored(f"\n>> Final Portfolio ({len(state.active_positions)} positions):", Colors.PURPLE))
             for symbol, position in state.active_positions.items():
                 print(f"  {colored(symbol, Colors.WHITE)}: {position.unit_count} units, "
                       f"Avg Entry: ${position.avg_entry_price:.2f}, Stop: ${position.stop_price:.2f}")
@@ -400,8 +381,8 @@ def run_bot():
         if state.total_trades > 0:
             notifier.print_performance(state)
 
-        print(colored("\n━" * 75, Colors.PURPLE))
-        print(colored("👋 Turtle Bot stopped. Trade by the Turtle rules!\n", Colors.CYAN))
+        print(colored("\n?" * 75, Colors.PURPLE))
+        print(colored(" Turtle Bot stopped. Trade by the Turtle rules!\n", Colors.CYAN))
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
@@ -410,8 +391,8 @@ def run_bot():
         # Save state on error
         try:
             state.save(config.STATE_FILE)
-            print(colored(f"\n💾 State saved despite error", Colors.YELLOW))
-        except:
+            print(colored(f"\n>> State saved despite error", Colors.YELLOW))
+        except Exception:
             pass
 
         sys.exit(1)

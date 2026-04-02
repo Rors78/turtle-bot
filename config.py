@@ -17,15 +17,11 @@ class Config:
     ACCOUNT_SIZE = float(os.getenv('ACCOUNT_SIZE', '130'))
 
     # === EXCHANGE CONFIGURATION ===
-    PRIMARY_EXCHANGE = os.getenv('PRIMARY_EXCHANGE', 'kraken')
-    SECONDARY_EXCHANGE = os.getenv('SECONDARY_EXCHANGE', 'binance_us')
+    PRIMARY_EXCHANGE = 'kraken'  # Kraken only — not overridable
 
     # API Credentials
     KRAKEN_API_KEY = os.getenv('KRAKEN_API_KEY', '')
     KRAKEN_API_SECRET = os.getenv('KRAKEN_API_SECRET', '')
-    BINANCE_API_KEY = os.getenv('BINANCE_API_KEY', '')
-    BINANCE_API_SECRET = os.getenv('BINANCE_API_SECRET', '')
-
     # Trading Mode
     PAPER_TRADING = os.getenv('PAPER_TRADING', 'True').lower() == 'true'
 
@@ -75,7 +71,7 @@ class Config:
 
     # === OPERATIONAL SETTINGS ===
     CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '300'))  # 5 minutes
-    STATE_FILE = os.getenv('STATE_FILE', 'bot_state.pkl')
+    STATE_FILE = os.getenv('STATE_FILE', 'bot_state.json')
     LOG_FILE = os.getenv('LOG_FILE', 'turtle_signals.log')
 
     # === NOTIFICATIONS ===
@@ -107,30 +103,17 @@ class Config:
     }
 
     @classmethod
-    def get_api_credentials(cls, exchange_name: str) -> Dict[str, str]:
+    def get_api_credentials(cls) -> Dict[str, str]:
         """
-        Get API credentials for a specific exchange
-
-        Args:
-            exchange_name: Name of exchange ('kraken', 'binance_us', etc.)
+        Get Kraken API credentials
 
         Returns:
             Dict with 'api_key' and 'api_secret' keys
         """
-        exchange_name = exchange_name.lower()
-
-        if exchange_name == 'kraken':
-            return {
-                'api_key': cls.KRAKEN_API_KEY,
-                'api_secret': cls.KRAKEN_API_SECRET
-            }
-        elif exchange_name in ('binance_us', 'binanceus'):
-            return {
-                'api_key': cls.BINANCE_API_KEY,
-                'api_secret': cls.BINANCE_API_SECRET
-            }
-        else:
-            return {'api_key': '', 'api_secret': ''}
+        return {
+            'api_key': cls.KRAKEN_API_KEY,
+            'api_secret': cls.KRAKEN_API_SECRET
+        }
 
     @classmethod
     def validate(cls) -> List[str]:
@@ -173,22 +156,23 @@ class Config:
         if cls.MAX_COINS < cls.MIN_COINS:
             errors.append(f"MAX_COINS ({cls.MAX_COINS}) < MIN_COINS ({cls.MIN_COINS})")
 
-        # Turtle rules validation
+        # Turtle rules validation (warnings only — allow experimentation)
+        warnings = []
         if cls.MAX_UNITS_PER_POSITION != 4:
-            errors.append(f"MAX_UNITS_PER_POSITION should be 4 (Turtle rule), got {cls.MAX_UNITS_PER_POSITION}")
-
+            warnings.append(f"MAX_UNITS_PER_POSITION={cls.MAX_UNITS_PER_POSITION} (standard Turtle rule is 4)")
         if cls.PYRAMID_INCREMENT != 0.5:
-            errors.append(f"PYRAMID_INCREMENT should be 0.5N (Turtle rule), got {cls.PYRAMID_INCREMENT}")
-
+            warnings.append(f"PYRAMID_INCREMENT={cls.PYRAMID_INCREMENT} (standard Turtle rule is 0.5N)")
         if cls.STOP_DISTANCE != 2.0:
-            errors.append(f"STOP_DISTANCE should be 2.0N (Turtle rule), got {cls.STOP_DISTANCE}")
+            warnings.append(f"STOP_DISTANCE={cls.STOP_DISTANCE} (standard Turtle rule is 2.0N)")
+        if warnings:
+            print("\n⚠️  Non-standard Turtle parameters:")
+            for w in warnings:
+                print(f"   • {w}")
 
         # API keys validation for live trading
         if not cls.PAPER_TRADING:
-            if cls.PRIMARY_EXCHANGE == 'kraken' and not (cls.KRAKEN_API_KEY and cls.KRAKEN_API_SECRET):
+            if not (cls.KRAKEN_API_KEY and cls.KRAKEN_API_SECRET):
                 errors.append("Live trading enabled but missing Kraken API credentials")
-            if cls.PRIMARY_EXCHANGE == 'binance_us' and not (cls.BINANCE_API_KEY and cls.BINANCE_API_SECRET):
-                errors.append("Live trading enabled but missing Binance US API credentials")
 
         return errors
 
@@ -198,38 +182,38 @@ class Config:
         print("\n" + "=" * 75)
         print("TURTLE BOT CONFIGURATION")
         print("=" * 75)
-        print(f"\n💰 Account: ${cls.ACCOUNT_SIZE:,.2f}")
-        print(f"📊 Mode: {'PAPER TRADING' if cls.PAPER_TRADING else 'LIVE TRADING'}")
-        print(f"🏦 Exchanges: {cls.PRIMARY_EXCHANGE.upper()} (primary) → {cls.SECONDARY_EXCHANGE.upper()} (fallback) → CoinGecko")
-        print(f"💱 Quote Currency: USDT ONLY")
+        print(f"\n  Account: ${cls.ACCOUNT_SIZE:,.2f}")
+        print(f"  Mode: {'PAPER TRADING' if cls.PAPER_TRADING else 'LIVE TRADING'}")
+        print(f"  Exchange: KRAKEN (data + execution) | CoinGecko (coin discovery only)")
+        print(f"  Quote Currency: USDT ONLY")
 
-        print(f"\n⚡ Systems:")
+        print(f"\n  Systems:")
         if cls.SYSTEM_1_ENABLED:
-            print(f"   • System 1 (20-day): {cls.SYSTEM_SPLIT * 100:.0f}% capital")
+            print(f"   * System 1 (20-day): {cls.SYSTEM_SPLIT * 100:.0f}% capital")
         if cls.SYSTEM_2_ENABLED:
-            print(f"   • System 2 (55-day): {(1 - cls.SYSTEM_SPLIT) * 100:.0f}% capital")
+            print(f"   * System 2 (55-day): {(1 - cls.SYSTEM_SPLIT) * 100:.0f}% capital")
 
-        print(f"\n🐢 Turtle Rules:")
-        print(f"   • ATR Period: {cls.ATR_PERIOD} days")
-        print(f"   • Risk Per Trade: {cls.RISK_PER_TRADE * 100:.1f}%")
-        print(f"   • Max Units: {cls.MAX_UNITS_PER_POSITION}")
-        print(f"   • Pyramid Increment: {cls.PYRAMID_INCREMENT}N")
-        print(f"   • Stop Distance: {cls.STOP_DISTANCE}N")
+        print(f"\n  Turtle Rules:")
+        print(f"   * ATR Period: {cls.ATR_PERIOD} days")
+        print(f"   * Risk Per Trade: {cls.RISK_PER_TRADE * 100:.1f}%")
+        print(f"   * Max Units: {cls.MAX_UNITS_PER_POSITION}")
+        print(f"   * Pyramid Increment: {cls.PYRAMID_INCREMENT}N")
+        print(f"   * Stop Distance: {cls.STOP_DISTANCE}N")
 
-        print(f"\n🛡️ Risk Limits:")
-        print(f"   • Max Total Risk: {cls.MAX_TOTAL_RISK * 100:.0f}%")
-        print(f"   • Emergency Stop: {cls.EMERGENCY_STOP_LOSS * 100:.0f}% drawdown")
-        print(f"   • Reserve Cash: {cls.RESERVE_CASH_PCT * 100:.0f}%")
+        print(f"\n  Risk Limits:")
+        print(f"   * Max Total Risk: {cls.MAX_TOTAL_RISK * 100:.0f}%")
+        print(f"   * Emergency Stop: {cls.EMERGENCY_STOP_LOSS * 100:.0f}% drawdown")
+        print(f"   * Reserve Cash: {cls.RESERVE_CASH_PCT * 100:.0f}%")
 
-        print(f"\n📈 Portfolio:")
-        print(f"   • Max Positions: {cls.MAX_COINS}")
-        print(f"   • Max Per Sector: {cls.MAX_CORRELATED_COINS}")
+        print(f"\n  Portfolio:")
+        print(f"   * Max Positions: {cls.MAX_COINS}")
+        print(f"   * Max Per Sector: {cls.MAX_CORRELATED_COINS}")
         if cls.SCAN_TOP_COINS:
-            print(f"   • Scanning: Top {cls.TOP_N_COINS} coins (USDT pairs, batches of {cls.BATCH_SIZE})")
+            print(f"   * Scanning: Top {cls.TOP_N_COINS} coins (USDT pairs, batches of {cls.BATCH_SIZE})")
         else:
-            print(f"   • Scanning: Fixed list (USDT pairs)")
+            print(f"   * Scanning: Fixed list (USDT pairs)")
 
-        print(f"\n⏰ Updates: Every {cls.CHECK_INTERVAL // 60} minutes")
+        print(f"\n  Updates: Every {cls.CHECK_INTERVAL // 60} minutes")
         print("=" * 75 + "\n")
 
     @classmethod
