@@ -1,9 +1,13 @@
 """
 Notifications, Colors, and Console Output
-ANSI terminal colors + structured alerts for trading events
+ANSI terminal colors + structured alerts for trading events.
+Supports optional Discord webhook notifications.
 """
 
+import json
 import logging
+import urllib.request
+import urllib.error
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -31,12 +35,20 @@ def colored(text: str, color: str) -> str:
     return f"{color}{text}{Colors.RESET}"
 
 
+# ---- Discord embed color constants ----
+
+DISCORD_COLOR_GREEN  = 0x2ECC71   # entries
+DISCORD_COLOR_RED    = 0xE74C3C   # stops / exits with loss
+DISCORD_COLOR_BLUE   = 0x3498DB   # pyramids
+DISCORD_COLOR_ORANGE = 0xE67E22   # warnings / errors
+
+
 # ---- Notifier ----
 
 class Notifier:
     """
     Handles all console output and alerting for the bot.
-    Structured for easy extension (e.g. Discord webhook, email) later.
+    Supports optional Discord webhook notifications.
     """
 
     def __init__(self, config):
@@ -45,6 +57,10 @@ class Notifier:
         self.alert_on_exit  = getattr(config, 'ALERT_ON_EXIT', True)
         self.alert_on_stop  = getattr(config, 'ALERT_ON_STOP', True)
         self.alert_on_error = getattr(config, 'ALERT_ON_ERROR', True)
+
+        # Discord configuration
+        self.discord_enabled = getattr(config, 'ALERT_ON_DISCORD', False)
+        self.discord_webhook_url = getattr(config, 'DISCORD_WEBHOOK_URL', '')
 
     def print_banner(self):
         """Print startup banner."""
@@ -55,6 +71,49 @@ class Notifier:
         print(colored("  Stops: 2N | Pyramid: 4 units at 0.5N | Risk: 1% per unit", Colors.GRAY))
         print(colored("-" * 75, Colors.CYAN))
 
+    # ─── Internal Discord helpers ─────────────────────────────────────────────
+
+    def _send_discord(self, title: str, message: str, color: int) -> None:
+        """
+        Post an embed to the Discord webhook URL.
+
+        Uses only stdlib urllib.request — no new dependencies.
+        Failures are silently logged and never crash the bot.
+        """
+        if not self.discord_enabled or not self.discord_webhook_url:
+            return
+
+        payload = {
+            "embeds": [
+                {
+                    "title": title,
+                    "description": message,
+                    "color": color,
+                }
+            ]
+        }
+        try:
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(
+                self.discord_webhook_url,
+                data=data,
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                _ = resp.read()
+        except Exception as exc:
+            # Never let a webhook failure crash the bot
+            logger.warning(f"Discord webhook failed: {exc}")
+
+    def _send_notification(self, title: str, message: str, color: int) -> None:
+        """Send to all enabled channels (currently console logging + Discord)."""
+        # Console output is handled by the individual alert_* methods.
+        # This method only handles the supplemental channels.
+        self._send_discord(title, message, color)
+
+    # ─── Public alert methods ─────────────────────────────────────────────────
+
     def alert_entry(self, symbol: str, system: int, price: float,
                     quantity: float, atr: float, stop: float):
         if not self.alert_on_entry:
@@ -63,6 +122,16 @@ class Notifier:
         print(f"\n{tag} {colored(symbol, Colors.WHITE)}")
         print(f"   Price: ${price:,.4f}  |  Qty: {quantity:.6f}  |  ATR: ${atr:,.4f}")
         print(f"   Stop:  ${stop:,.4f}  |  Risk: ${(price - stop) * quantity:,.2f}")
+
+        title = f"S{system} ENTRY: {symbol}"
+        message = (
+            f"**Price:** ${price:,.4f}\n"
+            f"**Qty:** {quantity:.6f}\n"
+            f"**ATR:** ${atr:,.4f}\n"
+            f"**Stop:** ${stop:,.4f}\n"
+            f"**Risk:** ${(price - stop) * quantity:,.2f}"
+        )
+        self._send_notification(title, message, DISCORD_COLOR_GREEN)
 
     def alert_exit(self, symbol: str, reason: str, price: float,
                    pnl: float, pnl_pct: float):
@@ -74,6 +143,14 @@ class Notifier:
         print(f"\n{tag} {colored(symbol, Colors.WHITE)}  P&L: {pnl_str}")
         print(f"   Exit price: ${price:,.4f}")
 
+        discord_color = DISCORD_COLOR_GREEN if pnl >= 0 else DISCORD_COLOR_RED
+        title = f"EXIT {reason}: {symbol}"
+        message = (
+            f"**Exit Price:** ${price:,.4f}\n"
+            f"**P&L:** ${pnl:+,.2f} ({pnl_pct:+.1%})"
+        )
+        self._send_notification(title, message, discord_color)
+
     def alert_stop_hit(self, symbol: str, price: float, stop: float, market_value: float):
         if not self.alert_on_stop:
             return
@@ -81,10 +158,25 @@ class Notifier:
         print(f"\n{tag} {colored(symbol, Colors.WHITE)}")
         print(f"   Price: ${price:,.4f}  |  Stop was: ${stop:,.4f}  |  Value: ${market_value:,.2f}")
 
+        title = f"STOP HIT: {symbol}"
+        message = (
+            f"**Price:** ${price:,.4f}\n"
+            f"**Stop was:** ${stop:,.4f}\n"
+            f"**Market Value:** ${market_value:,.2f}"
+        )
+        self._send_notification(title, message, DISCORD_COLOR_RED)
+
     def alert_pyramid(self, symbol: str, unit_num: int, price: float, quantity: float):
         tag = colored(f"[PYRAMID U{unit_num}]", Colors.CYAN)
         print(f"\n{tag} {colored(symbol, Colors.WHITE)}")
         print(f"   Price: ${price:,.4f}  |  Qty: {quantity:.6f}")
+
+        title = f"PYRAMID U{unit_num}: {symbol}"
+        message = (
+            f"**Price:** ${price:,.4f}\n"
+            f"**Qty:** {quantity:.6f}"
+        )
+        self._send_notification(title, message, DISCORD_COLOR_BLUE)
 
     def alert_error(self, message: str, error: Exception = None):
         if not self.alert_on_error:
@@ -94,6 +186,12 @@ class Notifier:
         if error:
             print(f"   {colored(str(error), Colors.GRAY)}")
         logger.error(f"{message}: {error}" if error else message)
+
+        title = "BOT ERROR"
+        discord_msg = f"**{message}**"
+        if error:
+            discord_msg += f"\n{str(error)}"
+        self._send_notification(title, discord_msg, DISCORD_COLOR_ORANGE)
 
     def print_portfolio_summary(self, state, current_prices: Dict):
         """Print a summary table of all active positions."""
@@ -127,7 +225,7 @@ class Notifier:
         ))
 
     def print_performance(self, state):
-        """Print performance statistics."""
+        """Print performance statistics including analytics metrics if available."""
         summary = state.get_summary()
         win_rate = summary['win_rate']
         wr_color = Colors.GREEN if win_rate >= 0.5 else Colors.YELLOW
@@ -145,3 +243,13 @@ class Notifier:
               f"Total P&L: {pnl_str}  |  Return: {ret_str}")
         print(f"   Max Drawdown: {dd_str}  |  "
               f"W/L: {summary['winning_trades']}/{summary['losing_trades']}")
+
+        # Extended analytics metrics (only when available)
+        sharpe = summary.get('sharpe_ratio')
+        sortino = summary.get('sortino_ratio')
+        pf = summary.get('profit_factor')
+        exp = summary.get('expectancy')
+
+        if sharpe is not None and sharpe != 'N/A':
+            print(f"   Sharpe: {sharpe:.2f}  |  Sortino: {sortino:.2f}  |  "
+                  f"Profit Factor: {pf:.2f}  |  Expectancy: ${exp:+.2f}")

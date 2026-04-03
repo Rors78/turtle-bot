@@ -92,6 +92,10 @@ class Config:
         self.ALERT_ON_STOP = os.getenv('ALERT_ON_STOP', 'True').lower() == 'true'
         self.ALERT_ON_ERROR = os.getenv('ALERT_ON_ERROR', 'True').lower() == 'true'
 
+        # Discord webhook (disabled by default — set URL to enable)
+        self.ALERT_ON_DISCORD = os.getenv('ALERT_ON_DISCORD', 'False').lower() == 'true'
+        self.DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL', '')
+
         # === COIN SECTORS (for correlation filtering) ===
         # This is a soft lookup — coins absent from this dict simply have no
         # sector assigned and are not counted against any sector limit.

@@ -11,6 +11,12 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from core.position import TurtlePosition
+from utils.analytics import (
+    sharpe_ratio as _sharpe,
+    sortino_ratio as _sortino,
+    profit_factor as _profit_factor,
+    expectancy as _expectancy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +62,9 @@ class BotState:
         self.paused_at: Optional[datetime] = None
         self.pause_reason: str = ''
 
+        # Equity history: [{timestamp, equity}] — one entry per iteration
+        self.equity_history: List[Dict] = []
+
     # ─── Equity ───────────────────────────────────────────────
 
     def update_equity(self, new_equity: float):
@@ -69,6 +78,14 @@ class BotState:
                 drawdown = (self.peak_equity - new_equity) / self.peak_equity
                 if drawdown > self.max_drawdown:
                     self.max_drawdown = drawdown
+
+    def append_equity_snapshot(self, equity: float):
+        """Append a timestamped equity snapshot to equity_history."""
+        with self._lock:
+            self.equity_history.append({
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'equity': equity,
+            })
 
     # ─── Positions ────────────────────────────────────────────
 
@@ -122,7 +139,8 @@ class BotState:
         """Return dict used by notifier / dashboard."""
         win_rate = (self.winning_trades / self.total_trades) if self.total_trades > 0 else 0.0
         total_return = ((self.current_equity - self.initial_equity) / self.initial_equity) if self.initial_equity > 0 else 0.0
-        return {
+
+        summary = {
             'iteration': self.iteration,
             'initial_equity': self.initial_equity,
             'current_equity': self.current_equity,
@@ -137,6 +155,46 @@ class BotState:
             'max_drawdown': self.max_drawdown,
             'active_positions': len(self.active_positions),
         }
+
+        # Analytics metrics — only when we have >= 5 closed trades
+        MIN_TRADES_FOR_ANALYTICS = 5
+        if self.total_trades >= MIN_TRADES_FOR_ANALYTICS:
+            # Daily returns from equity_history
+            equity_vals = [pt['equity'] for pt in self.equity_history]
+            daily_returns = []
+            for i in range(1, len(equity_vals)):
+                prev = equity_vals[i - 1]
+                curr = equity_vals[i]
+                if prev > 0:
+                    daily_returns.append((curr - prev) / prev)
+
+            summary['sharpe_ratio'] = _sharpe(daily_returns) if len(daily_returns) >= 2 else 0.0
+            summary['sortino_ratio'] = _sortino(daily_returns) if len(daily_returns) >= 2 else 0.0
+
+            # Win/loss trade stats
+            win_pnls = [c.get('realized_pnl', 0.0) for c in self.closed_positions if c.get('realized_pnl', 0.0) > 0]
+            loss_pnls = [c.get('realized_pnl', 0.0) for c in self.closed_positions if c.get('realized_pnl', 0.0) <= 0]
+
+            avg_win = sum(win_pnls) / len(win_pnls) if win_pnls else 0.0
+            avg_loss = sum(loss_pnls) / len(loss_pnls) if loss_pnls else 0.0
+
+            summary['avg_win'] = avg_win
+            summary['avg_loss'] = avg_loss
+            summary['largest_win'] = max(win_pnls) if win_pnls else 0.0
+            summary['largest_loss'] = min(loss_pnls) if loss_pnls else 0.0
+            summary['profit_factor'] = _profit_factor(win_pnls, loss_pnls)
+            summary['expectancy'] = _expectancy(avg_win, avg_loss, win_rate)
+        else:
+            summary['sharpe_ratio'] = 'N/A'
+            summary['sortino_ratio'] = 'N/A'
+            summary['profit_factor'] = 'N/A'
+            summary['expectancy'] = 'N/A'
+            summary['avg_win'] = 'N/A'
+            summary['avg_loss'] = 'N/A'
+            summary['largest_win'] = 'N/A'
+            summary['largest_loss'] = 'N/A'
+
+        return summary
 
     # ─── Persistence ──────────────────────────────────────────
 
@@ -168,6 +226,7 @@ class BotState:
             'pause_reason': self.pause_reason,
             'active_positions': {sym: pos.to_dict() for sym, pos in self.active_positions.items()},
             'closed_positions': self.closed_positions,
+            'equity_history': self.equity_history,
             'saved_at': datetime.now(timezone.utc).isoformat(),
         }
 
@@ -221,6 +280,7 @@ class BotState:
                 state.active_positions[sym] = TurtlePosition.from_dict(pos_data)
 
             state.closed_positions = data.get('closed_positions', [])
+            state.equity_history = data.get('equity_history', [])
 
             logger.info(f"State loaded from {filepath} "
                         f"(iteration {state.iteration}, "
