@@ -10,7 +10,6 @@ import logging
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Local imports
 from config import load_config
@@ -19,21 +18,9 @@ from risk.risk_manager import RiskManager
 from risk.portfolio_manager import PortfolioManager
 from utils.state import BotState
 from utils.notifications import Notifier, Colors, colored
+from utils.logging_config import setup_logging
 from exchange.base import CCXTAdapter
 from utils.multi_exchange import MultiExchangeFetcher
-
-
-# === LOGGING SETUP ===
-def setup_logging(log_file: str):
-    """Configure logging to file and console"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
 
 
 logger = logging.getLogger(__name__)
@@ -159,7 +146,7 @@ def run_bot():
         sys.exit(1)
 
     # Setup logging
-    setup_logging(config.LOG_FILE)
+    setup_logging(config.LOG_FILE, log_format=config.LOG_FORMAT)
 
     # Print configuration summary
     config.print_summary()
@@ -188,7 +175,8 @@ def run_bot():
             'kraken',
             api_key=creds['api_key'],
             api_secret=creds['api_secret'],
-            paper_trading=config.PAPER_TRADING
+            paper_trading=config.PAPER_TRADING,
+            slippage=config.PAPER_SLIPPAGE,
         )
         logger.info(f"Initialized Kraken exchange "
                     f"({'PAPER TRADING' if config.PAPER_TRADING else 'LIVE TRADING'})")

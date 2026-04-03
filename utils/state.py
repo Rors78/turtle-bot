@@ -6,6 +6,7 @@ JSON-only persistence with atomic writes
 import json
 import os
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -23,6 +24,9 @@ class BotState:
     """
 
     def __init__(self, account_size: float = 0.0):
+        # Thread safety — preventive for future multi-threaded use
+        self._lock = threading.Lock()
+
         # Loop counter
         self.iteration: int = 0
 
@@ -56,14 +60,15 @@ class BotState:
 
     def update_equity(self, new_equity: float):
         """Update current equity and track peak / max drawdown."""
-        self.current_equity = new_equity
-        if new_equity > self.peak_equity:
-            self.peak_equity = new_equity
+        with self._lock:
+            self.current_equity = new_equity
+            if new_equity > self.peak_equity:
+                self.peak_equity = new_equity
 
-        if self.peak_equity > 0:
-            drawdown = (self.peak_equity - new_equity) / self.peak_equity
-            if drawdown > self.max_drawdown:
-                self.max_drawdown = drawdown
+            if self.peak_equity > 0:
+                drawdown = (self.peak_equity - new_equity) / self.peak_equity
+                if drawdown > self.max_drawdown:
+                    self.max_drawdown = drawdown
 
     # ─── Positions ────────────────────────────────────────────
 
@@ -71,43 +76,45 @@ class BotState:
         return self.active_positions.get(symbol)
 
     def add_position(self, position: TurtlePosition):
-        self.active_positions[position.symbol] = position
-        if position.system == 1 and position.symbol not in self.system_1_symbols:
-            self.system_1_symbols.append(position.symbol)
-        elif position.system == 2 and position.symbol not in self.system_2_symbols:
-            self.system_2_symbols.append(position.symbol)
+        with self._lock:
+            self.active_positions[position.symbol] = position
+            if position.system == 1 and position.symbol not in self.system_1_symbols:
+                self.system_1_symbols.append(position.symbol)
+            elif position.system == 2 and position.symbol not in self.system_2_symbols:
+                self.system_2_symbols.append(position.symbol)
 
     def close_position(self, symbol: str, exit_price: float, exit_reason: str):
         """Move position from active to closed, record trade result."""
-        position = self.active_positions.pop(symbol, None)
-        if not position:
-            return
+        with self._lock:
+            position = self.active_positions.pop(symbol, None)
+            if not position:
+                return
 
-        pnl = position.calculate_pnl(exit_price)
-        self.total_pnl += pnl
-        self.total_trades += 1
-        if pnl >= 0:
-            self.winning_trades += 1
-        else:
-            self.losing_trades += 1
+            pnl = position.calculate_pnl(exit_price)
+            self.total_pnl += pnl
+            self.total_trades += 1
+            if pnl >= 0:
+                self.winning_trades += 1
+            else:
+                self.losing_trades += 1
 
-        # Cash back from position
-        market_value = exit_price * position.total_quantity
-        self.cash_balance += market_value
+            # Cash back from position
+            market_value = exit_price * position.total_quantity
+            self.cash_balance += market_value
 
-        # Archive
-        closed = position.to_dict()
-        closed['exit_price'] = exit_price
-        closed['exit_reason'] = exit_reason
-        closed['exit_time'] = datetime.now(timezone.utc).isoformat()
-        closed['realized_pnl'] = pnl
-        self.closed_positions.append(closed)
+            # Archive
+            closed = position.to_dict()
+            closed['exit_price'] = exit_price
+            closed['exit_reason'] = exit_reason
+            closed['exit_time'] = datetime.now(timezone.utc).isoformat()
+            closed['realized_pnl'] = pnl
+            self.closed_positions.append(closed)
 
-        # Remove from system symbol lists
-        if symbol in self.system_1_symbols:
-            self.system_1_symbols.remove(symbol)
-        if symbol in self.system_2_symbols:
-            self.system_2_symbols.remove(symbol)
+            # Remove from system symbol lists
+            if symbol in self.system_1_symbols:
+                self.system_1_symbols.remove(symbol)
+            if symbol in self.system_2_symbols:
+                self.system_2_symbols.remove(symbol)
 
     # ─── Summary ──────────────────────────────────────────────
 
@@ -138,6 +145,11 @@ class BotState:
         Atomic JSON save: write to .tmp then rename.
         Prevents a corrupt state file if the process dies mid-write.
         """
+        with self._lock:
+            self._save_locked(filepath)
+
+    def _save_locked(self, filepath: str):
+        """Internal save implementation — must be called with self._lock held."""
         data = {
             'iteration': self.iteration,
             'initial_equity': self.initial_equity,

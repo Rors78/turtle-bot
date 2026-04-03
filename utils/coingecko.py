@@ -11,6 +11,8 @@ import urllib.error
 import json
 from typing import List, Dict
 
+from utils.retry import retry_urllib
+
 logger = logging.getLogger(__name__)
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
@@ -26,6 +28,7 @@ class CoinGeckoAPI:
     def __init__(self):
         self._last_request = 0.0
 
+    @retry_urllib()
     def _get(self, path: str, params: Dict = None) -> Dict:
         """Make a rate-limited GET request."""
         # Enforce rate limit

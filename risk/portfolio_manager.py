@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from core.position import TurtlePosition
 from utils.notifications import Colors, colored
+from utils.audit import AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class PortfolioManager:
         self.exchanges = exchanges
         self.notifier = notifier
         self.exchange = exchanges.get('kraken') or next(iter(exchanges.values()))
+        self.audit = AuditLog(filepath=getattr(config, 'AUDIT_FILE', 'trade_audit.jsonl'))
 
     # ─── Stop Scanning ────────────────────────────────────────
 
@@ -271,6 +273,18 @@ class PortfolioManager:
             self.notifier.alert_entry(symbol, system, fill_price, fill_qty, atr, stop)
             logger.info(f"Entered {symbol} S{system}: {fill_qty:.6f} @ ${fill_price:,.4f}, stop ${stop:,.4f}")
 
+            self.audit.log_order(
+                event_type='ENTRY',
+                symbol=symbol,
+                side='buy',
+                quantity=fill_qty,
+                price=price,
+                fill_price=fill_price,
+                order_id=order.get('id', ''),
+                system=system,
+                reason=f"S{system} breakout",
+            )
+
         except Exception as e:
             self.notifier.alert_error(f"Entry failed for {symbol}", e)
 
@@ -302,6 +316,18 @@ class PortfolioManager:
             logger.info(f"Pyramid U{unit_num} {symbol}: {fill_qty:.6f} @ ${fill_price:,.4f}, "
                         f"new stop ${position.stop_price:,.4f}")
 
+            self.audit.log_order(
+                event_type='PYRAMID',
+                symbol=symbol,
+                side='buy',
+                quantity=fill_qty,
+                price=price,
+                fill_price=fill_price,
+                order_id=order.get('id', ''),
+                system=position.system,
+                reason=f"pyramid unit {unit_num}",
+            )
+
         except Exception as e:
             self.notifier.alert_error(f"Pyramid failed for {symbol}", e)
 
@@ -326,11 +352,31 @@ class PortfolioManager:
             pnl = position.calculate_pnl(fill_price)
             pnl_pct = position.calculate_pnl_pct(fill_price)
 
+            # Map caller-provided reason to a canonical event_type
+            _event_map = {
+                'EMERGENCY_STOP': 'EMERGENCY_STOP',
+                'STOP_HIT': 'STOP_HIT',
+            }
+            event_type = _event_map.get(reason, 'EXIT')
+
             state.close_position(symbol, fill_price, reason)
 
             self.notifier.alert_exit(symbol, reason, fill_price, pnl, pnl_pct)
             logger.info(f"Exited {symbol} ({reason}): {total_qty:.6f} @ ${fill_price:,.4f}, "
                         f"P&L ${pnl:+,.2f} ({pnl_pct:+.1%})")
+
+            self.audit.log_order(
+                event_type=event_type,
+                symbol=symbol,
+                side='sell',
+                quantity=total_qty,
+                price=price,
+                fill_price=fill_price,
+                order_id=order.get('id', ''),
+                system=position.system,
+                pnl=pnl,
+                reason=reason,
+            )
 
         except Exception as e:
             self.notifier.alert_error(f"Exit failed for {symbol}", e)

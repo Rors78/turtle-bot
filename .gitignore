@@ -81,3 +81,6 @@ backtest_results/
 trade_history.json
 positions.json
 performance.json
+
+# Audit trail (runtime-generated)
+trade_audit.jsonl

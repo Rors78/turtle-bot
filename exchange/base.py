@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Tuple
 import logging
 
+from utils.retry import retry
+
 logger = logging.getLogger(__name__)
 
 
@@ -227,7 +229,8 @@ class CCXTAdapter(ExchangeAdapter):
         exchange_name: str = 'kraken',
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
-        paper_trading: bool = True
+        paper_trading: bool = True,
+        slippage: float = 0.001,
     ):
         """
         Initialize CCXT adapter (Kraken only)
@@ -237,11 +240,15 @@ class CCXTAdapter(ExchangeAdapter):
             api_key: Kraken API key (optional for public data)
             api_secret: Kraken API secret (optional for public data)
             paper_trading: If True, don't execute real trades
+            slippage: Fractional slippage applied to paper fills (default 0.001 = 0.1%)
         """
         if exchange_name.lower() != 'kraken':
             raise ValueError(f"Only Kraken is supported, got: {exchange_name}")
 
         super().__init__('kraken', paper_trading)
+
+        # Slippage applied to paper-trade fills
+        self.slippage = slippage
 
         # Import ccxt here to avoid dependency if not using
         try:
@@ -267,11 +274,14 @@ class CCXTAdapter(ExchangeAdapter):
         except Exception as e:
             self.logger.warning(f"Could not load markets: {e}")
 
+    @retry()
     def get_balance(self, currency: str = 'USD') -> float:
         """Get account balance"""
         if self.paper_trading:
-            # Return simulated balance
-            return 10000.0  # Default paper trading balance
+            # Paper mode does not use this return value for position sizing.
+            # The caller (main.py) overrides account_balance with state.cash_balance
+            # immediately after this call, so returning 0.0 here is intentional.
+            return 0.0
 
         try:
             balance = self.exchange.fetch_balance()
@@ -280,6 +290,7 @@ class CCXTAdapter(ExchangeAdapter):
             self.logger.error(f"Error fetching balance: {e}")
             return 0.0
 
+    @retry()
     def get_ohlc(self, symbol: str, timeframe: str = '1d', limit: int = 100) -> List[Dict]:
         """Get OHLC data"""
         try:
@@ -304,6 +315,7 @@ class CCXTAdapter(ExchangeAdapter):
             self.logger.debug(f"No OHLC for {symbol}: {e}")  # DEBUG not ERROR - expected for unavailable pairs
             return []
 
+    @retry()
     def get_ticker(self, symbol: str) -> Dict:
         """Get current ticker"""
         try:
@@ -322,14 +334,19 @@ class CCXTAdapter(ExchangeAdapter):
             self.logger.debug(f"No ticker for {symbol}: {e}")  # DEBUG not ERROR - expected
             return {'symbol': symbol, 'last': 0, 'bid': 0, 'ask': 0, 'volume': 0}
 
+    @retry()
     def create_market_order(self, symbol: str, side: str, quantity: float) -> Dict:
         """Create market order"""
         symbol = self.normalize_symbol(symbol)
 
         if self.paper_trading:
-            # Simulate order execution
+            # Simulate order execution with realistic slippage.
+            # Buys fill at ask * (1 + slippage); sells fill at bid * (1 - slippage).
             ticker = self.get_ticker(symbol)
-            price = ticker['ask'] if side == 'buy' else ticker['bid']
+            if side == 'buy':
+                fill_price = ticker['ask'] * (1 + self.slippage)
+            else:
+                fill_price = ticker['bid'] * (1 - self.slippage)
 
             return {
                 'id': f"paper_{symbol}_{side}_{quantity}",
@@ -337,7 +354,7 @@ class CCXTAdapter(ExchangeAdapter):
                 'side': side,
                 'quantity': quantity,
                 'filled': quantity,
-                'price': price,
+                'price': fill_price,
                 'status': 'closed',
                 'timestamp': self.exchange.milliseconds()
             }
@@ -361,6 +378,7 @@ class CCXTAdapter(ExchangeAdapter):
             self.logger.error(f"Error creating order: {e}")
             raise
 
+    @retry()
     def get_order_status(self, order_id: str, symbol: str) -> Dict:
         """Get order status"""
         if self.paper_trading:
