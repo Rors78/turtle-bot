@@ -4,8 +4,11 @@ Pure functions for computing trading performance metrics.
 Used by both the backtester and live bot (via BotState.get_summary).
 """
 
+import logging
 import math
 from typing import Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def sharpe_ratio(returns: List[float], risk_free_rate: float = 0.0) -> float:
@@ -60,7 +63,10 @@ def sortino_ratio(returns: List[float], risk_free_rate: float = 0.0) -> float:
     downside_variance = sum(downside_sq) / len(downside_sq)
     downside_std = math.sqrt(downside_variance)
 
-    if downside_std == 0.0:
+    # Guard against near-zero downside deviation (e.g. all-flat or all-positive return
+    # series).  Without this, a single tiny loss among hundreds of flat days produces a
+    # downside_std so small that the ratio explodes to an unrealistic magnitude.
+    if downside_std < 1e-8:
         return 0.0
 
     return (mean_r - rf_daily) / downside_std * math.sqrt(252)
@@ -127,11 +133,17 @@ def max_drawdown(equity_curve: List[float]) -> Tuple[float, int, int]:
     current_peak_idx = 0
 
     for i, equity in enumerate(equity_curve):
-        if equity > current_peak:
-            current_peak = equity
+        # Clamp equity to zero so a negative-equity day never produces a
+        # drawdown greater than 100%.  Economically, once all capital is gone
+        # the drawdown is 100%; there is no meaningful "worse than total loss".
+        effective_equity = max(equity, 0.0)
+        if effective_equity > current_peak:
+            current_peak = effective_equity
             current_peak_idx = i
         else:
-            dd = (current_peak - equity) / current_peak if current_peak > 0 else 0.0
+            dd = (current_peak - effective_equity) / current_peak if current_peak > 0 else 0.0
+            # Hard cap: drawdown can never exceed 100%
+            dd = min(dd, 1.0)
             if dd > max_dd:
                 max_dd = dd
                 peak_idx = current_peak_idx

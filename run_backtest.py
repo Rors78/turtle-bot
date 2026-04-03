@@ -149,8 +149,10 @@ def print_results(result: BacktestResult, days: int, account_size: float) -> Non
     if result.monthly_returns:
         print(colored("\n  --- Monthly Returns ---", Colors.PURPLE))
         for month, ret in sorted(result.monthly_returns.items()):
-            m_color = Colors.GREEN if ret >= 0 else Colors.RED
-            print(f"  {month}:  {colored(f'{ret:+.2f}%', m_color)}")
+            # monthly_returns() returns fractions (e.g. -0.05 = -5%); convert to % for display
+            ret_pct = ret * 100.0
+            m_color = Colors.GREEN if ret_pct >= 0 else Colors.RED
+            print(f"  {month}:  {colored(f'{ret_pct:+.2f}%', m_color)}")
 
     print(colored("\n" + "=" * 70, Colors.CYAN))
 

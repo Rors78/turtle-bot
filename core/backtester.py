@@ -117,6 +117,16 @@ class Backtester:
 
         # --- Day-by-day loop ---
         for date_str in all_dates:
+            # Emergency stop: if equity has reached zero or below, the account is
+            # wiped out — stop the simulation and record all remaining days as flat.
+            if prev_equity <= 0:
+                equity_curve.append({
+                    'date': date_str,
+                    'equity': 0.0,
+                    'drawdown': 1.0,
+                })
+                daily_returns.append(0.0)
+                continue
             # Build market snapshot for this day
             market_snapshot = self._build_snapshot(norm_data, date_str)
 
@@ -181,17 +191,21 @@ class Backtester:
             )
             current_equity = cash + total_unrealized
 
-            # Daily return
-            if prev_equity > 0:
-                daily_ret = (current_equity - prev_equity) / prev_equity
-            else:
-                daily_ret = 0.0
+            # Clamp equity to zero: once all capital is lost we stop at 0, we do
+            # not allow a negative equity value to corrupt drawdown or return maths.
+            current_equity = max(current_equity, 0.0)
+
+            # Daily percentage return — prev_equity is always > 0 here because the
+            # emergency-stop block at the top of the loop guards the zero case.
+            daily_ret = (current_equity - prev_equity) / prev_equity
             daily_returns.append(daily_ret)
 
-            # Running max drawdown
+            # Running max drawdown (uses clamped current_equity)
             peak_eq = max((pt['equity'] for pt in equity_curve), default=initial_equity)
             peak_eq = max(peak_eq, current_equity)
             dd = (peak_eq - current_equity) / peak_eq if peak_eq > 0 else 0.0
+            # Hard cap so the per-day drawdown field is also bounded
+            dd = min(dd, 1.0)
 
             equity_curve.append({
                 'date': date_str,
@@ -625,8 +639,34 @@ class Backtester:
         result.max_drawdown = dd
 
         # Ratios
-        result.sharpe_ratio = calc_sharpe(daily_returns)
-        result.sortino_ratio = calc_sortino(daily_returns)
+        raw_sharpe = calc_sharpe(daily_returns)
+        raw_sortino = calc_sortino(daily_returns)
+
+        # Sanity guard: when the overall strategy lost money (total_return < 0)
+        # both Sharpe and Sortino must be non-positive.  Large intra-period swings
+        # (equity surging then crashing) can produce a positive sum/mean of daily
+        # percentage returns even when final equity < initial equity, because a big
+        # percentage gain on a tiny equity base outweighs earlier losses on a large
+        # base.  In that case the computed ratio is misleading; flip its sign so it
+        # correctly signals an undesirable outcome.
+        total_return_frac = result.total_return / 100.0
+        if total_return_frac < 0 and raw_sharpe > 0:
+            logger.warning(
+                "Sharpe sanity check: total return %.2f%% is negative but Sharpe is "
+                "positive (%.4f). Negating Sharpe to reflect actual loss.",
+                result.total_return, raw_sharpe,
+            )
+            raw_sharpe = -raw_sharpe
+        if total_return_frac < 0 and raw_sortino > 0:
+            logger.warning(
+                "Sortino sanity check: total return %.2f%% is negative but Sortino is "
+                "positive (%.4f). Negating Sortino to reflect actual loss.",
+                result.total_return, raw_sortino,
+            )
+            raw_sortino = -raw_sortino
+
+        result.sharpe_ratio = raw_sharpe
+        result.sortino_ratio = raw_sortino
 
         # Calmar needs years
         if len(all_dates) >= 2:
