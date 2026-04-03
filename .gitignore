@@ -76,6 +76,7 @@ desktop.ini
 # Test data
 test_data/
 backtest_results/
+backtest_results.json
 
 # Trading data (keep private)
 trade_history.json

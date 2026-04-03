@@ -57,7 +57,9 @@ STATE_FILE=bot_state.json
       "total_quantity": 0.00043,
       "unrealized_pnl": 1.30,
       "opened_at": "2026-01-15T10:30:00+00:00",
-      "last_pyramid_price": 60000.0
+      "last_pyramid_price": 60000.0,
+      "highest_price_since_entry": 61200.0,
+      "trailing_stop_enabled": false
     }
   },
   "closed_positions": [
@@ -74,11 +76,17 @@ STATE_FILE=bot_state.json
       "unrealized_pnl": 0.0,
       "opened_at": "2026-01-10T08:00:00+00:00",
       "last_pyramid_price": 3200.0,
+      "highest_price_since_entry": 3400.0,
+      "trailing_stop_enabled": false,
       "exit_price": 3350.0,
       "exit_reason": "EXIT_SIGNAL",
       "exit_time": "2026-01-14T16:00:00+00:00",
       "realized_pnl": 1.80
     }
+  ],
+  "equity_history": [
+    {"timestamp": "2026-01-15T10:00:00+00:00", "equity": 130.0},
+    {"timestamp": "2026-01-15T10:05:00+00:00", "equity": 131.2}
   ],
   "saved_at": "2026-01-15T10:35:00+00:00"
 }
@@ -105,6 +113,7 @@ STATE_FILE=bot_state.json
 | `pause_reason` | str | Human-readable reason for pause |
 | `active_positions` | object | Open positions keyed by symbol |
 | `closed_positions` | list | Trade history (archived closed positions) |
+| `equity_history` | list | List of `{timestamp, equity}` snapshots — one per bot cycle, used for Sharpe/Sortino calculation and the dashboard equity curve |
 | `saved_at` | str | ISO timestamp of last save |
 
 ### Position Fields
@@ -123,6 +132,8 @@ STATE_FILE=bot_state.json
 | `unrealized_pnl` | Last calculated unrealized P&L |
 | `opened_at` | ISO timestamp of first unit entry |
 | `last_pyramid_price` | Price of most recent unit (for 0.5N pyramid check) |
+| `highest_price_since_entry` | float — highest market price seen since this position was opened; used by the trailing stop to ratchet the stop upward |
+| `trailing_stop_enabled` | bool — whether the trailing stop is active for this position; set to `True` when `TRAILING_STOP_ENABLED=True` in config |
 
 ### Unit Fields
 
