@@ -1,5 +1,6 @@
 # Bot State Files
 bot_state.json
+bot_state.json.tmp
 bot_state.pkl
 bot_state.pkl.bak
 turtle_state.json
