@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Turtle Bot Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+          crossorigin="anonymous"></script>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #1a1a2e;
+      --surface:   #16213e;
+      --card:      #0f3460;
+      --card2:     #1a1a40;
+      --accent:    #e94560;
+      --text:      #e0e0e0;
+      --muted:     #888;
+      --green:     #4caf50;
+      --red:       #f44336;
+      --yellow:    #ff9800;
+      --blue:      #2196f3;
+      --mono:      'Courier New', Courier, monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    a { color: var(--accent); }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--card);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #fff;
+    }
+
+    .badge {
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .badge-paper { background: #444; color: #ccc; }
+    .badge-live  { background: #b71c1c; color: #fff; }
+
+    .conn-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .conn-dot.ok  { background: var(--green); }
+    .conn-dot.err { background: var(--red); }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #countdown {
+      font-family: var(--mono);
+      color: var(--yellow);
+    }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    main {
+      padding: 20px 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .top-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ────────────────────────────────────────────── */
+    .card {
+      background: var(--card2);
+      border: 1px solid var(--card);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card h2 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .section { margin-bottom: 16px; }
+
+    /* ── Equity card ──────────────────────────────────────── */
+    .equity-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .eq-item label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .eq-item span {
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .neu { color: var(--text); }
+
+    /* ── Stats card ───────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 10px;
+    }
+
+    .stat-item label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .stat-item span {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* ── Tables ───────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--card);
+    }
+
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-family: var(--mono);
+    }
+
+    tr.profit td { background: rgba(76, 175, 80, 0.06); }
+    tr.loss   td { background: rgba(244, 67, 54, 0.06); }
+
+    .no-data {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px;
+      font-style: italic;
+    }
+
+    /* ── Audit badges ─────────────────────────────────────── */
+    .evt {
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .evt-ENTRY          { background: #1b5e20; color: #a5d6a7; }
+    .evt-EXIT           { background: #b71c1c; color: #ef9a9a; }
+    .evt-STOP_HIT       { background: #7f0000; color: #ffcdd2; }
+    .evt-PYRAMID        { background: #0d47a1; color: #90caf9; }
+    .evt-EMERGENCY_STOP { background: #e65100; color: #ffcc80; }
+
+    /* ── Chart container ──────────────────────────────────── */
+    .chart-container {
+      position: relative;
+      height: 260px;
+    }
+
+    /* ── Bot status ───────────────────────────────────────── */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .status-item label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .status-item span {
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .paused { color: var(--yellow); }
+    .running { color: var(--green); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header>
+  <h1>&#x1F422; Turtle Bot</h1>
+  <span id="mode-badge" class="badge badge-paper">Paper</span>
+  <span class="conn-dot" id="conn-dot" title="Connection status"></span>
+  <span id="conn-label" style="font-size:12px;color:var(--muted)">connecting…</span>
+  <div class="header-right">
+    <span id="last-updated">—</span>
+    <span>Next poll: <span id="countdown">30</span>s</span>
+  </div>
+</header>
+
+<!-- ── Main content ───────────────────────────────────────── -->
+<main>
+
+  <!-- Top: equity + performance side by side -->
+  <div class="top-grid">
+
+    <!-- Equity Card -->
+    <div class="card section" id="equity-card">
+      <h2>Equity</h2>
+      <div class="equity-grid">
+        <div class="eq-item">
+          <label>Current Equity</label>
+          <span id="eq-current" class="neu">—</span>
+        </div>
+        <div class="eq-item">
+          <label>Initial Equity</label>
+          <span id="eq-initial" class="neu">—</span>
+        </div>
+        <div class="eq-item">
+          <label>Total Return</label>
+          <span id="eq-return" class="neu">—</span>
+        </div>
+        <div class="eq-item">
+          <label>Total P&amp;L</label>
+          <span id="eq-pnl" class="neu">—</span>
+        </div>
+        <div class="eq-item">
+          <label>Peak Equity</label>
+          <span id="eq-peak" class="neu">—</span>
+        </div>
+        <div class="eq-item">
+          <label>Max Drawdown</label>
+          <span id="eq-dd" class="neg">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Stats -->
+    <div class="card section" id="perf-card">
+      <h2>Performance</h2>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <label>Win Rate</label>
+          <span id="s-winrate">—</span>
+        </div>
+        <div class="stat-item">
+          <label>Total Trades</label>
+          <span id="s-trades">—</span>
+        </div>
+        <div class="stat-item">
+          <label>Wins / Losses</label>
+          <span id="s-wl">—</span>
+        </div>
+        <div class="stat-item">
+          <label>Sharpe Ratio</label>
+          <span id="s-sharpe">—</span>
+        </div>
+        <div class="stat-item">
+          <label>Sortino Ratio</label>
+          <span id="s-sortino">—</span>
+        </div>
+        <div class="stat-item">
+          <label>Profit Factor</label>
+          <span id="s-pf">—</span>
+        </div>
+        <div class="stat-item">
+          <label>Expectancy</label>
+          <span id="s-exp">—</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .top-grid -->
+
+  <!-- Equity Chart -->
+  <div class="card section" id="chart-card">
+    <h2>Equity Curve</h2>
+    <div id="chart-placeholder" class="no-data" style="display:none">No equity history yet</div>
+    <div class="chart-container" id="chart-container">
+      <canvas id="equity-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Active Positions -->
+  <div class="card section" id="positions-card">
+    <h2>Active Positions</h2>
+    <div class="table-wrap">
+      <table id="positions-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>System</th>
+            <th>Units</th>
+            <th>Avg Entry</th>
+            <th>Current Price</th>
+            <th>P&amp;L ($)</th>
+            <th>P&amp;L (%)</th>
+            <th>Stop Price</th>
+          </tr>
+        </thead>
+        <tbody id="positions-body">
+          <tr><td colspan="8" class="no-data">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent Trades -->
+  <div class="card section" id="trades-card">
+    <h2>Recent Closed Trades (last 20)</h2>
+    <div class="table-wrap">
+      <table id="trades-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>System</th>
+            <th>Entry Price</th>
+            <th>Exit Price</th>
+            <th>P&amp;L ($)</th>
+            <th>P&amp;L (%)</th>
+            <th>Exit Reason</th>
+            <th>Hold Time</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr><td colspan="8" class="no-data">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Audit Log -->
+  <div class="card section" id="audit-card">
+    <h2>Audit Log (last 20)</h2>
+    <div class="table-wrap">
+      <table id="audit-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Event</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Price</th>
+            <th>Qty</th>
+            <th>P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody id="audit-body">
+          <tr><td colspan="7" class="no-data">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bot Status -->
+  <div class="card section" id="status-card">
+    <h2>Bot Status</h2>
+    <div class="status-grid">
+      <div class="status-item">
+        <label>State</label>
+        <span id="st-paused">—</span>
+      </div>
+      <div class="status-item">
+        <label>Pause Reason</label>
+        <span id="st-reason">—</span>
+      </div>
+      <div class="status-item">
+        <label>Iteration</label>
+        <span id="st-iter">—</span>
+      </div>
+      <div class="status-item">
+        <label>Cash Balance</label>
+        <span id="st-cash">—</span>
+      </div>
+      <div class="status-item">
+        <label>Last Save</label>
+        <span id="st-saved">—</span>
+      </div>
+    </div>
+  </div>
+
+</main><!-- main -->
+
+<script>
+/* ── Utilities ─────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+
+function fmt$(n) {
+  if (n == null || n === 'N/A') return 'N/A';
+  return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function fmt_mono$(n, decimals=2) {
+  if (n == null || n === 'N/A') return 'N/A';
+  return '$' + Number(n).toFixed(decimals);
+}
+
+function fmt_pct(n) {
+  if (n == null || n === 'N/A') return 'N/A';
+  return (Number(n) >= 0 ? '+' : '') + Number(n).toFixed(2) + '%';
+}
+
+function fmt_ratio(n) {
+  if (n == null || n === 'N/A') return 'Insuff. data';
+  return Number(n).toFixed(3);
+}
+
+function pnl_class(n) {
+  if (n == null || n === 'N/A') return 'neu';
+  return Number(n) >= 0 ? 'pos' : 'neg';
+}
+
+function ts_short(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+function hold_time(opened_at, exit_time) {
+  try {
+    const ms = new Date(exit_time) - new Date(opened_at);
+    const h = Math.floor(ms / 3600000);
+    const d = Math.floor(h / 24);
+    return d > 0 ? d + 'd ' + (h % 24) + 'h' : h + 'h';
+  } catch { return '—'; }
+}
+
+/* ── Chart singleton ───────────────────────────────────────── */
+let equityChart = null;
+
+function renderChart(history, initialEquity) {
+  const container = $('chart-container');
+  const placeholder = $('chart-placeholder');
+
+  if (!history || history.length === 0) {
+    container.style.display = 'none';
+    placeholder.style.display = 'block';
+    return;
+  }
+  container.style.display = 'block';
+  placeholder.style.display = 'none';
+
+  const labels = history.map(pt => {
+    try { return new Date(pt.timestamp).toLocaleDateString(); } catch { return ''; }
+  });
+  const equityData = history.map(pt => pt.equity);
+  const ddData = history.map(pt => {
+    const peak = Math.max(...equityData.slice(0, equityData.indexOf(pt.equity) + 1));
+    return peak > 0 ? ((peak - pt.equity) / peak) * 100 : 0;
+  });
+
+  const refLine = history.map(() => initialEquity);
+
+  if (equityChart) {
+    equityChart.data.labels = labels;
+    equityChart.data.datasets[0].data = equityData;
+    equityChart.data.datasets[1].data = refLine;
+    equityChart.update('none');
+    return;
+  }
+
+  const ctx = $('equity-chart').getContext('2d');
+  equityChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Equity',
+          data: equityData,
+          borderColor: '#4caf50',
+          backgroundColor: 'rgba(76,175,80,0.08)',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.2,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Initial Equity',
+          data: refLine,
+          borderColor: '#888',
+          borderDash: [6, 4],
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: false,
+          yAxisID: 'y',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#ccc', font: { size: 11 } } },
+        tooltip: { backgroundColor: '#1a1a40', titleColor: '#fff', bodyColor: '#ccc' },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#777', maxTicksLimit: 8, font: { size: 10 } },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+        },
+        y: {
+          ticks: {
+            color: '#aaa',
+            font: { size: 10 },
+            callback: v => '$' + v.toLocaleString()
+          },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+        },
+      },
+    },
+  });
+}
+
+/* ── State renderer ────────────────────────────────────────── */
+function renderState(d) {
+  if (!d || d.status === 'no_data') {
+    // Clear main fields to indicate no data
+    $('eq-current').textContent = 'N/A';
+    return;
+  }
+
+  /* ── Mode badge ── */
+  const isPaper = d.paper_trading !== false;
+  const badge = $('mode-badge');
+  badge.textContent = isPaper ? 'Paper' : 'Live';
+  badge.className = 'badge ' + (isPaper ? 'badge-paper' : 'badge-live');
+
+  /* ── Equity ── */
+  const totalPnl = d.total_pnl || 0;
+  const ret = d.total_return_pct;
+
+  $('eq-current').textContent = fmt$(d.current_equity);
+  $('eq-current').className = pnl_class(totalPnl);
+
+  $('eq-initial').textContent = fmt$(d.initial_equity);
+  $('eq-return').textContent = fmt_pct(ret);
+  $('eq-return').className = pnl_class(ret);
+
+  $('eq-pnl').textContent = fmt$(totalPnl);
+  $('eq-pnl').className = pnl_class(totalPnl);
+
+  $('eq-peak').textContent = fmt$(d.peak_equity);
+  $('eq-dd').textContent = d.max_drawdown != null
+    ? (d.max_drawdown * 100).toFixed(2) + '%' : '—';
+
+  /* ── Performance ── */
+  const wr = d.win_rate;
+  $('s-winrate').textContent = wr != null ? (wr * 100).toFixed(1) + '%' : '—';
+  $('s-trades').textContent  = d.total_trades != null ? d.total_trades : '—';
+  $('s-wl').textContent      = (d.winning_trades || 0) + ' / ' + (d.losing_trades || 0);
+  $('s-sharpe').textContent  = fmt_ratio(d.sharpe_ratio);
+  $('s-sortino').textContent = fmt_ratio(d.sortino_ratio);
+  $('s-pf').textContent      = fmt_ratio(d.profit_factor);
+  $('s-exp').textContent     = d.expectancy != null && d.expectancy !== 'N/A'
+    ? fmt$(d.expectancy) : 'Insuff. data';
+
+  /* ── Equity chart ── */
+  renderChart(d.equity_history || [], d.initial_equity || 0);
+
+  /* ── Active positions ── */
+  const tbody = $('positions-body');
+  const activePos = d.active_positions || {};
+  const symbols = Object.keys(activePos);
+
+  if (symbols.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="no-data">No active positions</td></tr>';
+  } else {
+    // Sort by unrealized_pnl descending
+    const sorted = symbols.map(sym => ({ sym, pos: activePos[sym] }))
+      .sort((a, b) => (b.pos.unrealized_pnl || 0) - (a.pos.unrealized_pnl || 0));
+
+    tbody.innerHTML = sorted.map(({ sym, pos }) => {
+      const pnl = pos.unrealized_pnl || 0;
+      const entry = pos.avg_entry_price || 0;
+      // We don't have current price in state, show entry as reference
+      const pnlPct = entry > 0 ? ((pnl / (entry * (pos.total_quantity || 1))) * 100) : 0;
+      const rowCls = pnl >= 0 ? 'profit' : 'loss';
+      const pnlCls = pnl >= 0 ? 'pos' : 'neg';
+      return `<tr class="${rowCls}">
+        <td>${sym}</td>
+        <td>S${pos.system || '?'}</td>
+        <td>${pos.units ? pos.units.length : (pos.unit_count || '?')}</td>
+        <td>${fmt_mono$(entry, 4)}</td>
+        <td>—</td>
+        <td class="${pnlCls}">${fmt$(pnl)}</td>
+        <td class="${pnlCls}">${fmt_pct(pnlPct)}</td>
+        <td>${fmt_mono$(pos.stop_price, 4)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* ── Recent closed trades (last 20) ── */
+  const trades_tbody = $('trades-body');
+  const closed = (d.closed_positions || []).slice(-20).reverse();
+
+  if (closed.length === 0) {
+    trades_tbody.innerHTML = '<tr><td colspan="8" class="no-data">No closed trades yet</td></tr>';
+  } else {
+    trades_tbody.innerHTML = closed.map(t => {
+      const pnl = t.realized_pnl || 0;
+      const entry = t.avg_entry_price || 0;
+      const exit = t.exit_price || 0;
+      const pnlPct = entry > 0 && exit > 0
+        ? ((exit - entry) / entry * 100).toFixed(2) + '%' : '—';
+      const rowCls = pnl >= 0 ? 'profit' : 'loss';
+      const pnlCls = pnl >= 0 ? 'pos' : 'neg';
+      return `<tr class="${rowCls}">
+        <td>${t.symbol || '—'}</td>
+        <td>S${t.system || '?'}</td>
+        <td>${fmt_mono$(entry, 4)}</td>
+        <td>${fmt_mono$(exit, 4)}</td>
+        <td class="${pnlCls}">${fmt$(pnl)}</td>
+        <td class="${pnlCls}">${pnlPct}</td>
+        <td>${t.exit_reason || '—'}</td>
+        <td>${hold_time(t.opened_at, t.exit_time)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* ── Bot status ── */
+  const paused = d.is_paused;
+  $('st-paused').textContent = paused ? 'PAUSED' : 'Running';
+  $('st-paused').className = paused ? 'paused' : 'running';
+  $('st-reason').textContent = d.pause_reason || '—';
+  $('st-iter').textContent   = d.iteration != null ? d.iteration : '—';
+  $('st-cash').textContent   = fmt$(d.cash_balance);
+  $('st-saved').textContent  = ts_short(d.saved_at);
+}
+
+/* ── Audit renderer ────────────────────────────────────────── */
+function renderAudit(records) {
+  const tbody = $('audit-body');
+  if (!records || records.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="no-data">No audit entries</td></tr>';
+    return;
+  }
+  const last20 = records.slice(-20).reverse();
+  tbody.innerHTML = last20.map(r => {
+    const evtCls = 'evt evt-' + (r.event_type || '');
+    const pnl = r.pnl != null ? fmt$(r.pnl) : '—';
+    return `<tr>
+      <td>${ts_short(r.timestamp)}</td>
+      <td><span class="${evtCls}">${r.event_type || '—'}</span></td>
+      <td>${r.symbol || '—'}</td>
+      <td>${r.side || '—'}</td>
+      <td>${r.fill_price != null ? fmt_mono$(r.fill_price, 4) : '—'}</td>
+      <td>${r.quantity != null ? Number(r.quantity).toFixed(6) : '—'}</td>
+      <td>${pnl}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Poll logic ────────────────────────────────────────────── */
+const POLL_INTERVAL = 30; // seconds
+let countdown = POLL_INTERVAL;
+
+async function poll() {
+  try {
+    const [stateResp, auditResp] = await Promise.all([
+      fetch('/api/state'),
+      fetch('/api/audit'),
+    ]);
+    const stateData = await stateResp.json();
+    const auditData = await auditResp.json();
+
+    renderState(stateData);
+    renderAudit(auditData);
+
+    // Update connection indicator
+    $('conn-dot').className = 'conn-dot ok';
+    $('conn-label').textContent = 'Connected';
+    $('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+  } catch (err) {
+    $('conn-dot').className = 'conn-dot err';
+    $('conn-label').textContent = 'Error';
+    console.error('Poll failed:', err);
+  }
+
+  countdown = POLL_INTERVAL;
+}
+
+// Countdown timer
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) {
+    countdown = POLL_INTERVAL;
+    poll();
+  }
+  $('countdown').textContent = countdown;
+}, 1000);
+
+// Initial load
+poll();
+</script>
+</body>
+</html>

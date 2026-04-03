@@ -299,6 +299,11 @@ def run_bot():
                         state
                     )
 
+            # === PRIORITY 1.5: UPDATE TRAILING STOPS ===
+            # Run after stop checks so a newly-moved trailing stop is
+            # evaluated on the *next* cycle (not the same cycle it moved).
+            portfolio_manager.scan_trailing_stops(market_data, state.active_positions)
+
             # === PRIORITY 2: CHECK EXIT SIGNALS ===
             logger.info("Checking exit signals...")
             exit_symbols = portfolio_manager.scan_for_exits(market_data, state.active_positions)

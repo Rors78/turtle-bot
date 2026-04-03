@@ -7,6 +7,7 @@ Uses TurtleEngine for signals and RiskManager for constraint checks.
 import logging
 from typing import Any, Dict, List, Optional
 
+import config as _config_module
 from core.position import TurtlePosition
 from utils.notifications import Colors, colored
 from utils.audit import AuditLog
@@ -35,6 +36,12 @@ class PortfolioManager:
         self.exchange = exchanges.get('kraken') or next(iter(exchanges.values()))
         self.audit = AuditLog(filepath=getattr(config, 'AUDIT_FILE', 'trade_audit.jsonl'))
 
+        # Regime detector — only instantiated when the filter is enabled
+        self.regime_detector = None
+        if getattr(config, 'REGIME_FILTER_ENABLED', False):
+            from utils.regime import RegimeDetector
+            self.regime_detector = RegimeDetector(config)
+
     # ─── Stop Scanning ────────────────────────────────────────
 
     def scan_for_stops(
@@ -59,6 +66,40 @@ class PortfolioManager:
                 logger.info(f"Stop hit: {symbol} @ ${price:,.4f} (stop ${position.stop_price:,.4f})")
                 hit.append(symbol)
         return hit
+
+    # ─── Trailing Stops ───────────────────────────────────────────
+
+    def scan_trailing_stops(
+        self,
+        market_data: Dict,
+        active_positions: Dict,
+    ) -> None:
+        """
+        Update trailing stops for all active positions when enabled.
+
+        Loops through all active positions and calls
+        position.update_trailing_stop() for each one.  Stop movements
+        are logged at INFO level.
+        """
+        if not getattr(self.config, 'TRAILING_STOP_ENABLED', False):
+            return
+
+        distance = getattr(self.config, 'TRAILING_STOP_DISTANCE', 2.0)
+
+        for symbol, position in active_positions.items():
+            data = market_data.get(symbol)
+            if not data:
+                continue
+            price = data.get('price', 0)
+            if price <= 0:
+                continue
+
+            old_stop = position.stop_price
+            position.update_trailing_stop(price, trailing_distance=distance)
+            if position.stop_price > old_stop:
+                logger.info(
+                    f"Trailing stop updated: {symbol} stop moved to ${position.stop_price:.4f}"
+                )
 
     # ─── Exit Scanning ────────────────────────────────────────
 
@@ -190,6 +231,13 @@ class PortfolioManager:
             # Skip if we already have a position here
             if symbol in active_positions:
                 continue
+
+            # Regime filter — only applied to NEW entries
+            if self.regime_detector is not None:
+                enter_ok, regime_msg = self.regime_detector.should_enter(ohlc)
+                if not enter_ok:
+                    logger.debug(f"Regime filter blocked {symbol}: {regime_msg}")
+                    continue
 
             for system in systems:
                 sufficient, msg = self.engine.check_sufficient_history(ohlc, system)

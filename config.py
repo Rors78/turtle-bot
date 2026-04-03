@@ -77,6 +77,21 @@ class Config:
         self.LOG_FILE = os.getenv('LOG_FILE', 'turtle_signals.log')
         self.AUDIT_FILE = os.getenv('AUDIT_FILE', 'trade_audit.jsonl')
 
+        # === WEB DASHBOARD ===
+        self.DASHBOARD_PORT = int(os.getenv('DASHBOARD_PORT', '5001'))
+        self.STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'bot_state.json')
+        self.AUDIT_FILE_PATH = os.getenv('AUDIT_FILE_PATH', 'trade_audit.jsonl')
+
+        # === TRAILING STOPS ===
+        self.TRAILING_STOP_ENABLED = os.getenv('TRAILING_STOP_ENABLED', 'False').lower() == 'true'
+        self.TRAILING_STOP_METHOD = os.getenv('TRAILING_STOP_METHOD', 'atr')
+        self.TRAILING_STOP_DISTANCE = float(os.getenv('TRAILING_STOP_DISTANCE', '2.0'))
+
+        # === REGIME DETECTION ===
+        self.REGIME_FILTER_ENABLED = os.getenv('REGIME_FILTER_ENABLED', 'False').lower() == 'true'
+        self.REGIME_ADX_PERIOD = int(os.getenv('REGIME_ADX_PERIOD', '14'))
+        self.REGIME_MIN_ADX = float(os.getenv('REGIME_MIN_ADX', '25.0'))
+
         # === PAPER TRADING SLIPPAGE ===
         # Realistic slippage for liquid crypto pairs on Kraken (0.1%)
         self.PAPER_SLIPPAGE = float(os.getenv('PAPER_SLIPPAGE', '0.001'))

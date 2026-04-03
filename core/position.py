@@ -65,6 +65,10 @@ class TurtlePosition:
     opened_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_pyramid_price: float = 0.0  # Track for 0.5N increment checks
 
+    # Trailing stop fields
+    highest_price_since_entry: float = 0.0
+    trailing_stop_enabled: bool = False
+
     def __post_init__(self):
         """Ensure N values are synced"""
         if self.initial_n == 0.0 and self.initial_atr > 0.0:
@@ -143,6 +147,30 @@ class TurtlePosition:
             True if current price at or below stop price
         """
         return current_price <= self.stop_price
+
+    def update_trailing_stop(self, current_price: float, trailing_distance: float = 2.0):
+        """
+        Move the trailing stop up as price rises (never down).
+
+        Args:
+            current_price: Current market price
+            trailing_distance: Multiple of initial_n to trail behind (default 2.0)
+        """
+        if not self.trailing_stop_enabled:
+            return
+
+        if self.initial_n <= 0:
+            return
+
+        # Track highest price seen since entry
+        if current_price > self.highest_price_since_entry:
+            self.highest_price_since_entry = current_price
+
+        # New candidate stop: highest_price - distance * N
+        new_stop = self.highest_price_since_entry - (trailing_distance * self.initial_n)
+
+        # Only move the stop UP, never down
+        self.stop_price = max(self.stop_price, new_stop)
 
     def should_pyramid(self, current_price: float) -> bool:
         """
@@ -238,7 +266,9 @@ class TurtlePosition:
             'total_quantity': self.total_quantity,
             'unrealized_pnl': self.unrealized_pnl,
             'opened_at': self.opened_at.isoformat(),
-            'last_pyramid_price': self.last_pyramid_price
+            'last_pyramid_price': self.last_pyramid_price,
+            'highest_price_since_entry': self.highest_price_since_entry,
+            'trailing_stop_enabled': self.trailing_stop_enabled,
         }
 
     @classmethod
@@ -260,6 +290,10 @@ class TurtlePosition:
 
         # Restore units
         position.units = [Unit.from_dict(u) for u in data['units']]
+
+        # Restore trailing stop fields (with defaults for backward compat)
+        position.highest_price_since_entry = data.get('highest_price_since_entry', 0.0)
+        position.trailing_stop_enabled = data.get('trailing_stop_enabled', False)
 
         return position
 
