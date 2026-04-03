@@ -3,7 +3,7 @@ Turtle Trading Engine
 Core logic for Turtle Trading strategy
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class TurtleEngine:
     - Stop loss calculation (2N from entry)
     """
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         """
         Initialize Turtle Engine
 

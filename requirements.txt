@@ -3,3 +3,4 @@ ccxt>=4.0.0
 flask>=3.0.0
 flask-socketio>=5.3.0
 flask-cors>=4.0.0
+pytest>=7.0.0

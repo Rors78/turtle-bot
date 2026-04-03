@@ -4,7 +4,7 @@ Enforces Turtle risk rules and Kraken order size limits
 """
 
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class RiskManager:
     - Kraken minimum order size enforcement
     """
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
         self.max_total_risk = getattr(config, 'MAX_TOTAL_RISK', 0.20)
         self.emergency_stop_loss = getattr(config, 'EMERGENCY_STOP_LOSS', 0.30)

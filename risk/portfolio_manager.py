@@ -5,7 +5,7 @@ Uses TurtleEngine for signals and RiskManager for constraint checks.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.position import TurtlePosition
 from utils.notifications import Colors, colored
@@ -26,7 +26,7 @@ class PortfolioManager:
     paper/live mode. All risk checks go through RiskManager.
     """
 
-    def __init__(self, config, turtle_engine, risk_manager, exchanges: Dict, notifier):
+    def __init__(self, config: Any, turtle_engine: Any, risk_manager: Any, exchanges: Dict, notifier: Any) -> None:
         self.config = config
         self.engine = turtle_engine
         self.risk = risk_manager
@@ -248,8 +248,8 @@ class PortfolioManager:
         quantity: float,
         price: float,
         atr: float,
-        state,
-    ):
+        state: Any,
+    ) -> None:
         """Open a new Turtle position (Unit 1)."""
         try:
             order = self.exchange.create_market_order(symbol, 'buy', quantity)
@@ -293,8 +293,8 @@ class PortfolioManager:
         symbol: str,
         quantity: float,
         price: float,
-        state,
-    ):
+        state: Any,
+    ) -> None:
         """Add a pyramid unit to an existing position."""
         position = state.get_position(symbol)
         if not position:
@@ -336,8 +336,8 @@ class PortfolioManager:
         symbol: str,
         price: float,
         reason: str,
-        state,
-    ):
+        state: Any,
+    ) -> None:
         """Close an entire position."""
         position = state.get_position(symbol)
         if not position:
