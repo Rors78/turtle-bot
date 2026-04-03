@@ -32,7 +32,7 @@ def sharpe_ratio(returns: List[float], risk_free_rate: float = 0.0) -> float:
     variance = sum((r - mean_r) ** 2 for r in returns) / (len(returns) - 1)
     std_r = math.sqrt(variance)
 
-    if std_r == 0.0:
+    if abs(std_r) < 1e-10:
         return 0.0
 
     return (mean_r - rf_daily) / std_r * math.sqrt(252)
@@ -66,7 +66,7 @@ def sortino_ratio(returns: List[float], risk_free_rate: float = 0.0) -> float:
     # Guard against near-zero downside deviation (e.g. all-flat or all-positive return
     # series).  Without this, a single tiny loss among hundreds of flat days produces a
     # downside_std so small that the ratio explodes to an unrealistic magnitude.
-    if downside_std < 1e-8:
+    if abs(downside_std) < 1e-10:
         return 0.0
 
     return (mean_r - rf_daily) / downside_std * math.sqrt(252)
