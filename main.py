@@ -91,6 +91,20 @@ def get_coin_universe(config, quote_currency: str = 'USDT') -> List[str]:
     Returns:
         List of trading symbols
     """
+    import json as _json
+    from pathlib import Path as _Path
+
+    # Load blocked coins list
+    blocked_coins_path = _Path(__file__).parent / 'blocked_coins.json'
+    try:
+        with open(blocked_coins_path, 'r') as f:
+            blocked_data = _json.load(f)
+        blocked_set = set(blocked_data.get('blocked_coins', []))
+        logger.info(f"Loaded {len(blocked_set)} blocked coins from blocked_coins.json")
+    except Exception as e:
+        logger.warning(f"Could not load blocked_coins.json: {e} — proceeding with no block list")
+        blocked_set = set()
+
     if config.SCAN_TOP_COINS:
         # Fetch top N coins by market cap from CoinGecko
         logger.info(f"Fetching top {config.TOP_N_COINS} coins from CoinGecko...")
@@ -104,16 +118,33 @@ def get_coin_universe(config, quote_currency: str = 'USDT') -> List[str]:
                 min_market_cap=10_000_000   # $10M minimum market cap
             )
             symbols = [coin['symbol'] for coin in top_coins]  # Just base symbols now
+            before_count = len(symbols)
+            symbols = [s for s in symbols if s.upper() not in blocked_set]
+            filtered_count = before_count - len(symbols)
+            if filtered_count:
+                logger.info(f"Blocked coins filter removed {filtered_count} coin(s) from CoinGecko list")
             logger.info(f"Got {len(symbols)} quality coins from CoinGecko (filtered for volume/mcap)")
             return symbols
         except Exception as e:
             logger.error(f"Error fetching from CoinGecko: {e}")
             # Fallback to fixed coins
             logger.info("Falling back to fixed coin list")
-            return list(config.FIXED_COINS.keys())
+            fixed_keys = list(config.FIXED_COINS.keys())
+            before_count = len(fixed_keys)
+            fixed_keys = [k for k in fixed_keys if k.upper() not in blocked_set]
+            filtered_count = before_count - len(fixed_keys)
+            if filtered_count:
+                logger.info(f"Blocked coins filter removed {filtered_count} coin(s) from fixed coins fallback")
+            return fixed_keys
     else:
         # Use fixed coin list
-        return [f"{coin}/{quote_currency}" for coin in config.FIXED_COINS.keys()]
+        fixed_keys = list(config.FIXED_COINS.keys())
+        before_count = len(fixed_keys)
+        fixed_keys = [k for k in fixed_keys if k.upper() not in blocked_set]
+        filtered_count = before_count - len(fixed_keys)
+        if filtered_count:
+            logger.info(f"Blocked coins filter removed {filtered_count} coin(s) from fixed coins list")
+        return [f"{coin}/{quote_currency}" for coin in fixed_keys]
 
 
 # === MAIN BOT FUNCTION ===

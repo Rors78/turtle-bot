@@ -154,11 +154,12 @@ class TurtleEngine:
             logger.warning("Invalid ATR or price for position sizing")
             return (0.0, 0.0)
 
-        # Calculate unit size in USD
-        unit_usd = (account_size * self.risk_per_trade) / atr
+        # ATR is in absolute dollar terms, so dividing risk dollars by ATR
+        # directly yields the quantity (number of units/coins to trade).
+        quantity = (account_size * self.risk_per_trade) / atr
 
-        # Convert to quantity
-        quantity = unit_usd / current_price
+        # Notional value of the position in USD
+        notional_usd = quantity * current_price
 
         # Apply exchange constraints if provided
         if exchange_limits:
@@ -167,8 +168,8 @@ class TurtleEngine:
             min_notional = exchange_limits.get('min_notional', 0)
 
             # Check minimum notional value
-            if unit_usd < min_notional:
-                logger.warning(f"Position size ${unit_usd:.2f} below min notional ${min_notional:.2f}")
+            if notional_usd < min_notional:
+                logger.warning(f"Position size ${notional_usd:.2f} below min notional ${min_notional:.2f}")
                 return (0.0, 0.0)
 
             # Clamp quantity to exchange limits
@@ -177,7 +178,8 @@ class TurtleEngine:
             elif quantity > max_order:
                 quantity = max_order
 
-        notional_usd = quantity * current_price
+            # Recalculate notional after clamping
+            notional_usd = quantity * current_price
 
         return (quantity, notional_usd)
 
