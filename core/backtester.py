@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.turtle_engine import TurtleEngine
 from core.position import TurtlePosition
 from risk.risk_manager import RiskManager
+from utils.regime import RegimeDetector
 from utils.analytics import (
     sharpe_ratio as calc_sharpe,
     sortino_ratio as calc_sortino,
@@ -70,6 +71,13 @@ class Backtester:
         self.risk = RiskManager(config)
         self.slippage = getattr(config, 'PAPER_SLIPPAGE', 0.001)
         self.fee_rate = KRAKEN_TAKER_FEE
+
+        # Regime filter (Bug 2 fix): instantiate RegimeDetector when enabled
+        if getattr(config, 'REGIME_FILTER_ENABLED', False):
+            self.regime_detector: Optional[RegimeDetector] = RegimeDetector(config)
+            logger.info("Backtester: regime filter ENABLED (ADX min=%.1f)", self.regime_detector.min_adx)
+        else:
+            self.regime_detector = None
 
     # ─── Public entry point ───────────────────────────────────────────────────
 
@@ -179,7 +187,12 @@ class Backtester:
                 for p in active_positions.values()
             )
             equity_for_sizing = cash + total_unrealized
-            entry_signals = self._check_entries(market_snapshot, active_positions, equity_for_sizing)
+            # Pass both equity_for_sizing (for position sizing formula) and the
+            # current cash balance (for the deployable-cash guard).  See
+            # _check_entries for the Bug 1 fix details.
+            entry_signals = self._check_entries(
+                market_snapshot, active_positions, equity_for_sizing, cash
+            )
             for sig in entry_signals:
                 cost = self._execute_entry(sig, active_positions, cash, date_str)
                 cash -= cost
@@ -397,8 +410,21 @@ class Backtester:
         snapshot: Dict,
         active: Dict[str, TurtlePosition],
         account_size: float,
+        cash: float,
     ) -> List[Dict]:
-        """Return list of entry signals filtered by risk constraints."""
+        """Return list of entry signals filtered by risk constraints.
+
+        Bug 1 fix: tracks committed_notional so that multiple signals generated
+        on the same day cannot collectively exceed the available cash.  Each
+        subsequent signal is checked against (cash - already_committed) rather
+        than the original full equity snapshot, preventing the scenario where 3+
+        signals each pass the individual 50 % max_allocation guard but together
+        deploy more than 100 % of the account.
+
+        Bug 2 fix: when REGIME_FILTER_ENABLED is True the regime_detector's
+        should_enter() is called per symbol; symbols in a ranging/transitional
+        regime are skipped.
+        """
         # Check total risk guard
         current_prices = {s: d['price'] for s, d in snapshot.items()}
         if self.risk.is_total_risk_exceeded(active, current_prices):
@@ -411,11 +437,22 @@ class Backtester:
         if getattr(self.config, 'SYSTEM_2_ENABLED', True):
             systems.append(2)
 
+        # Bug 1 fix: track notional already committed by earlier signals in this
+        # batch so the available-cash check for each subsequent signal is honest.
+        committed_notional: float = 0.0
+
         for symbol, data in snapshot.items():
             if symbol in active:
                 continue
             if not data['atr'] or data['price'] <= 0:
                 continue
+
+            # Bug 2 fix: regime filter per symbol
+            if self.regime_detector is not None:
+                ok, regime_msg = self.regime_detector.should_enter(data['ohlc'])
+                if not ok:
+                    logger.debug("BT REGIME skip %s: %s", symbol, regime_msg)
+                    continue
 
             for system in systems:
                 # Use ohlc_prev: compare today's close against prior N-day high
@@ -435,8 +472,14 @@ class Backtester:
                 if qty <= 0:
                     continue
 
+                # Bug 1 fix: pass actual remaining cash (less already committed
+                # notional from this batch) as the account_balance so that the
+                # deployable-cash and per-position allocation guards are applied
+                # against what is genuinely available, not the stale equity
+                # snapshot that ignores signals committed earlier in this loop.
+                available_cash = cash - committed_notional
                 allowed, _ = self.risk.can_open_position(
-                    symbol, notional, account_size, active, system
+                    symbol, notional, available_cash, active, system
                 )
                 if not allowed:
                     continue
@@ -448,6 +491,7 @@ class Backtester:
                     'price': data['price'],
                     'atr': data['atr'],
                 })
+                committed_notional += notional
                 break  # one system per symbol per day
 
         return signals
