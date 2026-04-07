@@ -30,6 +30,7 @@ License: MIT
 """
 
 import json
+import logging
 import time
 import os
 import sys
@@ -203,7 +204,7 @@ class KrakenData:
     """Fetches and manages OHLC data from Kraken public API."""
 
     BASE_URL = "https://api.kraken.com/0/public"
-    RATE_LIMIT = 1.5  # seconds between calls
+    RATE_LIMIT = 1.0  # seconds between calls (Kraken public API ~1 req/s)
 
     def __init__(self):
         self.cache: Dict[str, List[dict]] = {}
@@ -279,6 +280,33 @@ class KrakenData:
                 "low":    float(t["l"][1]),
             }
         return None
+
+    def fetch_all_tickers(self, pairs: List[str]) -> Dict[str, dict]:
+        """Fetch tickers for all pairs in a single API call."""
+        if not pairs:
+            return {}
+        self._throttle()
+        pair_str = ",".join(pairs)
+        data = self._fetch_json("Ticker", {"pair": pair_str})
+        if data.get("error") and len(data.get("error", [])) > 0:
+            logging.warning(f"Ticker batch error: {data['error']}")
+            return {}
+        result_data = data.get("result", {})
+        result = {}
+        for key, t in result_data.items():
+            for p in pairs:
+                if p in key or key in p:
+                    result[p] = {
+                        "ask":    float(t["a"][0]),
+                        "bid":    float(t["b"][0]),
+                        "last":   float(t["c"][0]),
+                        "volume": float(t["v"][1]),
+                        "vwap":   float(t["p"][1]),
+                        "high":   float(t["h"][1]),
+                        "low":    float(t["l"][1]),
+                    }
+                    break
+        return result
 
     def get_all_ohlc(self, markets: list, interval: int = 1440,
                      lookback_days: int = 120) -> Dict[str, List[dict]]:
@@ -575,6 +603,10 @@ class TurtleEngine:
         # Breakout tracking for System 1 filter
         self.last_breakout_outcome: Dict[str, str] = {}
 
+        # Snapshot cache — rebuilt only after each scan, not on every 2s poll
+        self._snapshot_cache = None
+        self._snapshot_dirty = True
+
         # Central portfolio client (init before position persistence so reconcile works)
         self._portfolio_client = None
         if CONFIG["use_central_portfolio"]:
@@ -583,6 +615,7 @@ class TurtleEngine:
         # Position persistence for crash recovery
         self._positions_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "turtle_positions.json")
         self._load_positions()
+        self._load_state()
         self._reconcile_positions()
 
         # Fleet bus listener + publisher
@@ -633,6 +666,51 @@ class TurtleEngine:
         except Exception as e:
             logging.warning(f"Failed to save positions: {e}")
 
+    def _save_state(self):
+        """Save full engine state for crash recovery (equity, trades, signals)."""
+        try:
+            state = {
+                "equity": self.equity,
+                "starting_equity": self.starting_equity,
+                "peak_equity": self.peak_equity,
+                "notional_equity": self.notional_equity,
+                "scan_count": self.scan_count,
+                "last_scan_time": self.last_scan_time,
+                "last_breakout_outcome": self.last_breakout_outcome,
+                "equity_curve": self.equity_curve[-500:],
+                "all_signals": self.all_signals[-200:],
+                "trades": self.trade_log.trades[-1000:],
+                "saved_at": time.time(),
+            }
+            state_file = self._positions_file.replace("_positions.json", "_state.json")
+            tmp = state_file + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(state, f)
+            os.replace(tmp, state_file)
+        except Exception as e:
+            logging.warning(f"Failed to save state: {e}")
+
+    def _load_state(self):
+        """Load full engine state on startup (equity, trades, signals)."""
+        state_file = self._positions_file.replace("_positions.json", "_state.json")
+        if not os.path.exists(state_file):
+            return
+        try:
+            with open(state_file, "r") as f:
+                data = json.load(f)
+            self.equity = data.get("equity", self.starting_equity)
+            self.peak_equity = data.get("peak_equity", self.equity)
+            self.notional_equity = data.get("notional_equity", self.equity)
+            self.scan_count = data.get("scan_count", 0)
+            self.last_scan_time = data.get("last_scan_time", 0)
+            self.last_breakout_outcome = data.get("last_breakout_outcome", {})
+            self.equity_curve = data.get("equity_curve", [])
+            self.all_signals = data.get("all_signals", [])
+            self.trade_log.trades = data.get("trades", [])
+            logging.info(f"State restored: equity=${self.equity:.2f}, {len(self.trade_log.trades)} trades")
+        except Exception as e:
+            logging.warning(f"Failed to load state: {e}")
+
     # ── Portfolio Reconciliation ──
     def _reconcile_positions(self):
         """On startup, verify reservations are still valid. Try to re-reserve if stale."""
@@ -656,9 +734,11 @@ class TurtleEngine:
                 self._save_positions()
                 logging.info(f"Re-reserved {pair}: {new_rid}")
             else:
-                # Close position - no capital
+                # Close position - no capital; use current price if available
                 logging.warning(f"Stale reservation for {pair}, re-reserve failed: {new_rid} - closing")
-                self._execute_exit(pair, {"type": "stale_reservation", "price": pos.avg_entry})
+                ticker = self.data.fetch_ticker(pair)
+                exit_price = ticker["last"] if ticker else pos.avg_entry
+                self._execute_exit(pair, {"type": "stale_reservation", "price": exit_price})
 
     # ── Drawdown Adjustment (Original Rule) ──
     def _adjusted_equity(self) -> float:
@@ -983,6 +1063,7 @@ class TurtleEngine:
             pos.reservation_ids.append(result)
 
         pos.add_unit(price, unit_coins, n, int(time.time()))
+        self._save_positions()
 
     def _execute_exit(self, pair: str, exit_info: dict):
         """Close entire position and log the trade."""
@@ -1067,10 +1148,17 @@ class TurtleEngine:
 
         del self.positions[pair]
         self._save_positions()
+        self._save_state()
 
     # ── JSON Snapshot for Dashboard ──
     def snapshot(self) -> dict:
-        """Return full engine state as JSON-serializable dict."""
+        """Return full engine state as JSON-serializable dict.
+        Cached between scans — only rebuilt when _snapshot_dirty is True."""
+        if self._snapshot_cache is not None and not self._snapshot_dirty:
+            # Update only the time-sensitive fields without full rebuild
+            self._snapshot_cache["last_scan_time"] = self.last_scan_time
+            return self._snapshot_cache
+
         positions = {}
         for pair, pos in self.positions.items():
             name = next((m[1] for m in MARKETS if m[0] == pair), pair)
@@ -1216,6 +1304,8 @@ class TurtleEngine:
         }
         if _expectancy:
             result["expectancy"] = _expectancy.bot_snapshot_fields('turtlesue')
+        self._snapshot_cache = result
+        self._snapshot_dirty = False
         return result
 
     # ── Main Scan Loop ──
@@ -1232,6 +1322,11 @@ class TurtleEngine:
             self.errors.append(f"Data fetch error: {e}")
             return
 
+        # Batch fetch all tickers in one API call
+        active_pairs = [m[0] for m in MARKETS if m[0] in self.market_data]
+        batch_tickers = self.data.fetch_all_tickers(active_pairs)
+        self.tickers.update(batch_tickers)
+
         strength_scores = {}
         for pair, name, group in MARKETS:
             candles = self.market_data.get(pair)
@@ -1243,10 +1338,9 @@ class TurtleEngine:
                 continue
             self.n_values[pair] = n
 
-            ticker = self.data.fetch_ticker(pair)
+            ticker = self.tickers.get(pair)
             if not ticker:
                 continue
-            self.tickers[pair] = ticker
             current_price = ticker["last"]
 
             strength = TurtleMath.market_strength(candles, n, 60)
@@ -1313,6 +1407,8 @@ class TurtleEngine:
             self.all_signals = self.all_signals[-200:]
 
         self.last_scan_time = int(time.time())
+        self._snapshot_dirty = True
+        self._save_state()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1799,6 +1895,15 @@ def print_rules_reference():
 
 def main():
     """Main entry point."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(message)s',
+        handlers=[
+            logging.FileHandler('turtlebot.log'),
+            logging.StreamHandler(sys.stdout),
+        ]
+    )
+
     # --auto flag or non-interactive stdin skips the config menu
     if "--auto" in sys.argv or not sys.stdin.isatty():
         pass  # use defaults
@@ -1880,6 +1985,10 @@ def main():
 
         print(f"\n{DIM}  \"The key is consistency and discipline.\"")
         print(f"  -- Richard Dennis{RESET}\n")
+
+        engine._save_state()
+        engine._save_positions()
+        print(f"  {GREEN}State saved.{RESET}")
 
 
 if __name__ == "__main__":

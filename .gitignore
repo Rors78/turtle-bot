@@ -90,3 +90,5 @@ trade_audit.jsonl
 dashboard_cache.json
 turtlebot_state.json
 turtle_positions.json
+turtle_state.json
+turtlebot.log
