@@ -21,12 +21,12 @@ sys.path.insert(0, str(_repo_root))
 try:
     from config import Config
     _cfg = Config()
-    _STATE_FILE = getattr(_cfg, 'STATE_FILE_PATH', 'bot_state.json')
-    _AUDIT_FILE = getattr(_cfg, 'AUDIT_FILE_PATH', 'trade_audit.jsonl')
+    _STATE_FILE = getattr(_cfg, 'STATE_FILE', 'bot_state.json')
+    _AUDIT_FILE = getattr(_cfg, 'AUDIT_FILE', 'trade_audit.jsonl')
     _PORT = getattr(_cfg, 'DASHBOARD_PORT', 5001)
 except Exception:
-    _STATE_FILE = os.getenv('STATE_FILE_PATH', 'bot_state.json')
-    _AUDIT_FILE = os.getenv('AUDIT_FILE_PATH', 'trade_audit.jsonl')
+    _STATE_FILE = os.getenv('STATE_FILE', 'bot_state.json')
+    _AUDIT_FILE = os.getenv('AUDIT_FILE', 'trade_audit.jsonl')
     _PORT = int(os.getenv('DASHBOARD_PORT', '5001'))
 
 # Resolve paths relative to repo root when they are relative

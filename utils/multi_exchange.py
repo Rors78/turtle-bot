@@ -16,8 +16,7 @@ class MultiExchangeFetcher:
     """
     Fetches OHLC and ticker data from Kraken only.
 
-    CoinGecko is NOT used as a price source — only for coin discovery
-    (handled separately in main.py via CoinGeckoAPI).
+    Coin discovery is handled separately in main.py via KrakenDiscovery.
 
     If Kraken data fetch fails for a symbol, that symbol is skipped
     for the cycle. No price fallback — bad data is worse than no data.

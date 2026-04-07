@@ -62,6 +62,10 @@ class BotState:
         self.paused_at: Optional[datetime] = None
         self.pause_reason: str = ''
 
+        # Emergency stop persistence
+        self.emergency_stopped: bool = False
+        self.emergency_stopped_at: str = ''
+
         # Equity history: [{timestamp, equity}] — one entry per iteration
         self.equity_history: List[Dict] = []
 
@@ -224,6 +228,8 @@ class BotState:
             'is_paused': self.is_paused,
             'paused_at': self.paused_at.isoformat() if self.paused_at else None,
             'pause_reason': self.pause_reason,
+            'emergency_stopped': self.emergency_stopped,
+            'emergency_stopped_at': self.emergency_stopped_at,
             'active_positions': {sym: pos.to_dict() for sym, pos in self.active_positions.items()},
             'closed_positions': self.closed_positions,
             'equity_history': self.equity_history,
@@ -271,6 +277,8 @@ class BotState:
             state.system_2_symbols = data.get('system_2_symbols', [])
             state.is_paused = data.get('is_paused', False)
             state.pause_reason = data.get('pause_reason', '')
+            state.emergency_stopped = data.get('emergency_stopped', False)
+            state.emergency_stopped_at = data.get('emergency_stopped_at', '')
 
             paused_at = data.get('paused_at')
             state.paused_at = datetime.fromisoformat(paused_at) if paused_at else None

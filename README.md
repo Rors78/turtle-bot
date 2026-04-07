@@ -24,7 +24,7 @@ This bot is specifically designed to meet US regulatory requirements:
 
 ## What Is Turtle Bot?
 
-A cryptocurrency trading bot implementing the classic **Turtle Trading Strategy** for Kraken's US spot market. The bot runs a fully automated trend-following system: it scans the top coins by market cap, detects breakouts using Turtle rules, sizes positions by ATR-based risk, pyramids into winning trades, and exits on breakdown signals or stops. Everything is long-only, unleveraged, and USDT-paired.
+A cryptocurrency trading bot implementing the classic **Turtle Trading Strategy** for Kraken's US spot market. The bot runs a fully automated trend-following system: it scans the top coins by 24h volume on Kraken, detects breakouts using Turtle rules, sizes positions by ATR-based risk, pyramids into winning trades, and exits on breakdown signals or stops. Everything is long-only, unleveraged, and USDT-paired.
 
 ---
 
@@ -42,7 +42,7 @@ A cryptocurrency trading bot implementing the classic **Turtle Trading Strategy*
 ### Exchange and Data
 
 - **Kraken only**: all OHLC data and order execution via CCXT — no Binance, no fallback exchanges
-- **CoinGecko (coin discovery only)**: builds the trading universe by market cap ranking — no prices from CoinGecko; a 429 rate-limit response triggers a 60-second back-off
+- **Kraken REST API for coin discovery by 24h volume**: builds the trading universe from Kraken's own public `/Ticker` endpoint — no third-party dependency, no rate limit concerns
 - **USDT pairs only**: all trading is quoted in USDT
 - **Retry with exponential back-off**: Kraken API calls are automatically retried on transient failures
 - **Minimum order validation**: Kraken minimum order size and notional value are checked before every order
@@ -119,7 +119,7 @@ turtle-bot/
 │   ├── regime.py                # ADX-based regime/trend filter
 │   ├── retry.py                 # Retry decorator with exponential back-off
 │   ├── multi_exchange.py        # Kraken OHLC fetcher (named for import compat)
-│   └── coingecko.py             # CoinGecko API (coin discovery only)
+│   └── kraken_discovery.py      # Kraken REST API (coin discovery by 24h volume)
 ├── web/
 │   ├── app.py                   # Flask dashboard server
 │   └── templates/
@@ -251,7 +251,7 @@ Available flags:
 
 Results are written to `backtest_results.json` and printed to the console.
 
-**Note**: the backtester uses the fixed coin universe defined in `config.py` (`FIXED_COINS`), not the live CoinGecko scan. This keeps backtest results reproducible.
+**Note**: when `SCAN_TOP_COINS=False`, the backtester uses the fixed coin universe defined in `config.py` (`FIXED_COINS`). This keeps backtest results reproducible.
 
 ---
 
@@ -366,7 +366,7 @@ All settings are loaded from `.env` (see `.env.example` for every variable with 
 | `MAX_CORRELATED_COINS` | `2` | Max positions per sector |
 | `MAX_TOTAL_RISK` | `0.20` | Max total portfolio risk (20%) |
 | `EMERGENCY_STOP_LOSS` | `0.30` | Drawdown to trigger emergency close (30%) |
-| `SCAN_TOP_COINS` | `True` | Use CoinGecko top-N for coin universe |
+| `SCAN_TOP_COINS` | `True` | Scan Kraken pairs by 24h volume for coin universe |
 | `TOP_N_COINS` | `50` | How many top coins to consider |
 | `CHECK_INTERVAL` | `300` | Seconds between bot cycles (5 min) |
 | `DASHBOARD_PORT` | `5001` | Flask dashboard TCP port |

@@ -98,10 +98,10 @@ def retry(max_attempts: int = 3, base_delay: float = 1.0):
 
 def retry_urllib(max_attempts: int = 3, base_delay: float = 1.0):
     """
-    Variant of @retry for urllib-based callers (e.g. CoinGeckoAPI._get).
+    Variant of @retry for urllib-based callers (e.g. KrakenDiscovery._get).
 
     Retries on: urllib.error.URLError, TimeoutError
-    Does NOT retry HTTP 429 — CoinGeckoAPI already handles that with a 60s sleep.
+    Does NOT retry HTTP 429 — callers should handle rate-limit responses themselves.
     """
     import urllib.error
 

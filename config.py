@@ -79,8 +79,6 @@ class Config:
 
         # === WEB DASHBOARD ===
         self.DASHBOARD_PORT = int(os.getenv('DASHBOARD_PORT', '5001'))
-        self.STATE_FILE_PATH = os.getenv('STATE_FILE_PATH', 'bot_state.json')
-        self.AUDIT_FILE_PATH = os.getenv('AUDIT_FILE_PATH', 'trade_audit.jsonl')
 
         # === TRAILING STOPS ===
         self.TRAILING_STOP_ENABLED = os.getenv('TRAILING_STOP_ENABLED', 'False').lower() == 'true'
@@ -130,11 +128,7 @@ class Config:
         }
 
         # Fixed coin list (fallback if SCAN_TOP_COINS is False)
-        self.FIXED_COINS = {
-            "BTC": "bitcoin", "ETH": "ethereum", "XRP": "ripple", "SOL": "solana",
-            "LINK": "chainlink", "TRX": "tron",
-            "ADA": "cardano", "HYPE": "hyperliquid", "XLM": "stellar"
-        }
+        self.FIXED_COINS = ['BTC', 'ETH', 'XRP', 'SOL', 'LINK', 'TRX', 'ADA', 'XLM']
 
     def get_api_credentials(self) -> Dict[str, str]:
         """
@@ -215,7 +209,7 @@ class Config:
         print("=" * 75)
         print(f"\n  Account: ${self.ACCOUNT_SIZE:,.2f}")
         print(f"  Mode: {'PAPER TRADING' if self.PAPER_TRADING else 'LIVE TRADING'}")
-        print(f"  Exchange: KRAKEN (data + execution) | CoinGecko (coin discovery only)")
+        print(f"  Exchange: Kraken REST API (pairs + data)")
         print(f"  Quote Currency: USDT ONLY")
 
         print(f"\n  Systems:")
@@ -245,6 +239,16 @@ class Config:
             print(f"   * Scanning: Fixed list (USDT pairs)")
 
         print(f"\n  Updates: Every {self.CHECK_INTERVAL // 60} minutes")
+
+        print(f"\n  Opt-in Features:")
+        print(f"   * Trailing Stops: {'ON' if self.TRAILING_STOP_ENABLED else 'OFF'}")
+        if self.TRAILING_STOP_ENABLED:
+            print(f"     Distance: {self.TRAILING_STOP_DISTANCE}N")
+        print(f"   * Regime Filter: {'ON' if self.REGIME_FILTER_ENABLED else 'OFF'}")
+        if self.REGIME_FILTER_ENABLED:
+            print(f"     ADX Period: {self.REGIME_ADX_PERIOD}, Min ADX: {self.REGIME_MIN_ADX}")
+        print(f"   * Discord Alerts: {'ON' if self.ALERT_ON_DISCORD else 'OFF'}")
+        print(f"   * Paper Slippage: {self.PAPER_SLIPPAGE * 100:.1f}%")
         print("=" * 75 + "\n")
 
     @classmethod

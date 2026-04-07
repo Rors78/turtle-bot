@@ -89,19 +89,14 @@ def fetch_historical_data(
 
 def get_backtest_symbols(config: Config, top_n: int) -> List[str]:
     """Return list of symbols to backtest, up to top_n coins."""
-    # Use the fixed coin list as default; CoinGecko optional
-    fixed = [f"{base}/USDT" for base in config.FIXED_COINS.keys()]
+    fixed = [f"{base}/USDT" for base in config.FIXED_COINS]
 
     if config.SCAN_TOP_COINS:
-        try:
-            from utils.coingecko import CoinGeckoAPI
-            cg = CoinGeckoAPI()
-            top = cg.get_top_coins(limit=top_n, min_volume=1_000_000, min_market_cap=10_000_000)
-            symbols = [f"{c['symbol']}/USDT" for c in top[:top_n]]
-            print(colored(f"Using {len(symbols)} CoinGecko top coins for backtest.", Colors.GRAY))
-            return symbols
-        except Exception as e:
-            logger.warning(f"CoinGecko unavailable ({e}), using fixed coin list.")
+        from utils.kraken_discovery import KrakenDiscovery
+        top = KrakenDiscovery().get_top_pairs_by_volume(limit=top_n)
+        symbols = [p['symbol'] for p in top]
+        print(colored(f"Using {len(symbols)} Kraken top coins by volume for backtest.", Colors.GRAY))
+        return symbols
 
     return fixed[:top_n]
 

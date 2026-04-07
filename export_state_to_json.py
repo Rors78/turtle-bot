@@ -38,7 +38,7 @@ def main():
     print(f"  - Active Positions: {len(state.active_positions)}")
     print(f"  - Closed Positions: {len(state.closed_positions)}")
     print(f"  - Total Trades: {state.total_trades}")
-    print(f"  - Win Rate: {state.get_summary()['win_rate']:.1f}%")
+    print(f"  - Win Rate: {state.get_summary()['win_rate'] * 100:.1f}%")
     print(f"  - Max Drawdown: {state.max_drawdown * 100:.2f}%")
 
     if state.active_positions:

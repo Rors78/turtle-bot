@@ -9,8 +9,8 @@ This document describes the current codebase. All pre-refactor content (multi-ex
 | Concern | Decision |
 |---------|----------|
 | Exchange | **Kraken only** — `CCXTAdapter` raises `ValueError` if any other exchange name is passed |
-| Market data | **Kraken OHLC via CCXT** — no Binance US, no CoinGecko price fallback |
-| Coin discovery | **CoinGecko** (market cap ranking only) — uses stdlib `urllib`, no `requests` dependency |
+| Market data | **Kraken OHLC via CCXT** — no Binance US, no third-party price fallback |
+| Coin discovery | **Kraken only** — single data source for discovery, OHLC, and execution; uses stdlib `urllib`, no `requests` dependency |
 | State persistence | **JSON only** (`bot_state.json`) — atomic writes (temp file + rename), no pickle files |
 | Dashboard | **Plain Flask + polling** — vanilla JS polls `/api/state` every 30 seconds; no WebSockets, no SocketIO |
 | Opt-in features | **Trailing stops**, **regime detection**, **Discord alerts** — all `False` by default |
@@ -26,7 +26,7 @@ Account:          $130.00
 Mode:             PAPER TRADING
 Exchange:         Kraken (data + execution)
 Quote currency:   USDT only
-Coin discovery:   CoinGecko top-50 by market cap (batches of 20)
+Coin discovery:   Kraken top-50 by 24h volume
 
 Systems:
   System 1 (20-day breakout):  60% capital  (SYSTEM_SPLIT=0.6)
@@ -92,11 +92,7 @@ Most Kraken USDT pairs require a minimum order of $10–$25 notional value. At $
 
 ### Backtester Coin Universe
 
-The backtester (`run_backtest.py`) uses the fixed coin list in `config.py` (`FIXED_COINS`), not the live CoinGecko top-N scan. This is intentional — backtests must be reproducible and cannot depend on a changing universe. Current fixed coins: BTC, ETH, XRP, SOL, LINK, TRX, ADA, HYPE, XLM.
-
-### CoinGecko Rate Limits
-
-The CoinGecko free tier limits requests to approximately 30 per minute. When a `429 Too Many Requests` response is received, the bot sleeps for 60 seconds before retrying. If you run `SCAN_TOP_COINS=True` with a very small `BATCH_SIZE` and many cycles in quick succession, you may encounter back-offs. Increase `BATCH_SIZE` or reduce `TOP_N_COINS` to mitigate.
+The backtester (`run_backtest.py`) uses the fixed coin list in `config.py` (`FIXED_COINS`) when `SCAN_TOP_COINS=False`. When enabled, it queries Kraken for the top-N pairs by 24h volume. Current fixed coins: BTC, ETH, XRP, SOL, LINK, TRX, ADA, XLM.
 
 ### Regime Filter and Backtester
 

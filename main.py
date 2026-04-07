@@ -93,42 +93,21 @@ def get_coin_universe(config, quote_currency: str = 'USDT') -> List[str]:
         blocked_set = set()
 
     if config.SCAN_TOP_COINS:
-        # Fetch top N coins by market cap from CoinGecko
-        logger.info(f"Fetching top {config.TOP_N_COINS} coins from CoinGecko...")
-        from utils.coingecko import CoinGeckoAPI
-        coingecko = CoinGeckoAPI()
-
-        try:
-            top_coins = coingecko.get_top_coins(
-                limit=config.TOP_N_COINS,
-                min_volume=1_000_000,      # $1M minimum 24h volume
-                min_market_cap=10_000_000   # $10M minimum market cap
-            )
-            symbols = [coin['symbol'] for coin in top_coins]  # Just base symbols now
-            before_count = len(symbols)
-            symbols = [s for s in symbols if s.upper() not in blocked_set]
-            filtered_count = before_count - len(symbols)
-            if filtered_count:
-                logger.info(f"Blocked coins filter removed {filtered_count} coin(s) from CoinGecko list")
-            logger.info(f"Got {len(symbols)} quality coins from CoinGecko (filtered for volume/mcap)")
-            return symbols
-        except Exception as e:
-            logger.error(f"Error fetching from CoinGecko: {e}")
-            # Fallback to fixed coins
-            logger.info("Falling back to fixed coin list")
-            fixed_keys = list(config.FIXED_COINS.keys())
-            before_count = len(fixed_keys)
-            fixed_keys = [k for k in fixed_keys if k.upper() not in blocked_set]
-            filtered_count = before_count - len(fixed_keys)
-            if filtered_count:
-                logger.info(f"Blocked coins filter removed {filtered_count} coin(s) from fixed coins fallback")
-            return fixed_keys
+        # Fetch top N coins by volume from Kraken
+        logger.info(f"Fetching top {config.TOP_N_COINS} coins from Kraken by volume...")
+        from utils.kraken_discovery import KrakenDiscovery
+        top_pairs = KrakenDiscovery().get_top_pairs_by_volume(
+            limit=config.TOP_N_COINS,
+            min_volume_usd=100_000,
+            blocked_coins=blocked_set,
+        )
+        symbols = [p['symbol'] for p in top_pairs]
+        logger.info(f"Got {len(symbols)} quality pairs from Kraken (filtered by volume)")
+        return symbols
     else:
         # Use fixed coin list
-        fixed_keys = list(config.FIXED_COINS.keys())
-        before_count = len(fixed_keys)
-        fixed_keys = [k for k in fixed_keys if k.upper() not in blocked_set]
-        filtered_count = before_count - len(fixed_keys)
+        fixed_keys = [c for c in config.FIXED_COINS if c.upper() not in blocked_set]
+        filtered_count = len(config.FIXED_COINS) - len(fixed_keys)
         if filtered_count:
             logger.info(f"Blocked coins filter removed {filtered_count} coin(s) from fixed coins list")
         return [f"{coin}/{quote_currency}" for coin in fixed_keys]
@@ -142,7 +121,7 @@ def run_bot():
     try:
         config = load_config()
     except ValueError as e:
-        print(colored(f"\n? Configuration Error:\n{e}\n", Colors.RED))
+        print(colored(f"\n!! Configuration Error:\n{e}\n", Colors.RED))
         sys.exit(1)
 
     # Setup logging
@@ -181,7 +160,7 @@ def run_bot():
         logger.info(f"Initialized Kraken exchange "
                     f"({'PAPER TRADING' if config.PAPER_TRADING else 'LIVE TRADING'})")
 
-        # Kraken data fetcher (CoinGecko used only for coin discovery in get_coin_universe)
+        # Kraken data fetcher (Kraken also used for coin discovery in get_coin_universe)
         multi_fetcher = MultiExchangeFetcher(
             primary_exchange=exchanges['kraken'],
             quote_currency=quote_currency
@@ -189,7 +168,7 @@ def run_bot():
         logger.info(f"Kraken fetcher initialized (quote: {quote_currency})")
 
     except Exception as e:
-        print(colored(f"\n? Exchange Initialization Error: {e}\n", Colors.RED))
+        print(colored(f"\n!! Exchange Initialization Error: {e}\n", Colors.RED))
         sys.exit(1)
 
     # Portfolio Manager
@@ -215,6 +194,13 @@ def run_bot():
     symbols = get_coin_universe(config, quote_currency=quote_currency)
     logger.info(f"Trading universe: {len(symbols)} symbols (quote: {quote_currency})")
 
+    # Check if bot was previously emergency-stopped — require manual reset
+    if state.emergency_stopped:
+        print(colored("\n!! Bot is locked after an emergency stop.", Colors.RED))
+        print(colored(f"   Triggered at: {state.emergency_stopped_at}", Colors.RED))
+        print(colored("   Edit bot_state.json and set emergency_stopped to false to restart.", Colors.YELLOW))
+        sys.exit(1)
+
     # Main loop
     print(colored(f"\n>> Turtle Bot started at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", Colors.CYAN))
     print(colored(f"$$ Initial Equity: ${state.initial_equity:,.2f}", Colors.WHITE))
@@ -224,10 +210,10 @@ def run_bot():
         while True:
             state.iteration += 1
 
-            print("\n" + colored("?" * 75, Colors.BLUE))
+            print("\n" + colored("=" * 75, Colors.BLUE))
             print(colored(f"~  Update #{state.iteration}", Colors.BLUE) +
                   colored(f" | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", Colors.GRAY))
-            print(colored("?" * 75, Colors.BLUE))
+            print(colored("=" * 75, Colors.BLUE))
 
             # Fetch market data (with multi-exchange fallback)
             logger.info("Fetching market data...")
@@ -271,6 +257,10 @@ def run_bot():
                         'EMERGENCY_STOP',
                         state
                     )
+
+                # Lock bot to prevent restart without manual reset
+                state.emergency_stopped = True
+                state.emergency_stopped_at = datetime.now(timezone.utc).isoformat()
 
                 # Save state and stop
                 state.save(config.STATE_FILE)
@@ -388,7 +378,7 @@ def run_bot():
                 time.sleep(config.CHECK_INTERVAL)
 
     except KeyboardInterrupt:
-        print("\n\n" + colored("?" * 75, Colors.PURPLE))
+        print("\n\n" + colored("=" * 75, Colors.PURPLE))
         print(colored("!! Stopping Turtle Bot...", Colors.YELLOW))
 
         # Save final state
@@ -405,7 +395,7 @@ def run_bot():
         if state.total_trades > 0:
             notifier.print_performance(state)
 
-        print(colored("\n?" * 75, Colors.PURPLE))
+        print(colored("\n" + "=" * 75, Colors.PURPLE))
         print(colored(" Turtle Bot stopped. Trade by the Turtle rules!\n", Colors.CYAN))
 
     except Exception as e:
