@@ -85,3 +85,8 @@ performance.json
 
 # Audit trail (runtime-generated)
 trade_audit.jsonl
+
+# ULTRA engine state files
+dashboard_cache.json
+turtlebot_state.json
+turtle_positions.json

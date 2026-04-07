@@ -205,7 +205,35 @@ KRAKEN_API_SECRET=your_secret_here
 
 ---
 
-## Running the Bot
+## Running ULTRA (Recommended)
+
+The ULTRA engine is a self-contained single-file trading system with built-in dashboard:
+
+```bash
+python turtlebot.py
+```
+
+Or use the launcher:
+
+```bash
+python run_ultra.py
+```
+
+The dashboard auto-starts at http://localhost:5001
+
+ULTRA uses Kraken's public REST API directly — no ccxt, no API keys needed for paper trading.
+
+### Legacy Runner
+
+The original modular bot is still available:
+
+```bash
+python main.py
+```
+
+---
+
+## Running the Bot (Legacy)
 
 **Paper trading (safe default):**
 

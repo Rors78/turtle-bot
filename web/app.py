@@ -40,6 +40,7 @@ def _abs(path: str) -> str:
 STATE_FILE = _abs(_STATE_FILE)
 AUDIT_FILE = _abs(_AUDIT_FILE)
 BACKTEST_FILE = str(_repo_root / 'backtest_results.json')
+ULTRA_STATE_FILE = str(_repo_root / 'turtlebot_state.json')
 PORT = _PORT
 
 # Stale threshold: 2x the default check interval (5 min * 2 = 15 min)
@@ -110,6 +111,20 @@ def api_backtest():
     Return backtest results if available.
     """
     data = _read_json_file(BACKTEST_FILE)
+    if data is None:
+        return jsonify({'status': 'no_data'})
+    return jsonify(data)
+
+
+@app.route('/api/snapshot')
+def api_snapshot():
+    """
+    Return ULTRA engine snapshot.
+    Reads turtlebot_state.json if available, otherwise falls back to bot_state.json.
+    """
+    data = _read_json_file(ULTRA_STATE_FILE)
+    if data is None:
+        data = _read_json_file(STATE_FILE)
     if data is None:
         return jsonify({'status': 'no_data'})
     return jsonify(data)
